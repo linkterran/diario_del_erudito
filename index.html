@@ -1346,6 +1346,9 @@
         <button class="btn-primary" style="flex:1;" onclick="exportGrimorio()">&#x1F4C4; Exportar Grimorio</button>
         <button class="btn-secondary" style="flex:1;" onclick="backupSoul()">&#x1F512; Respaldo del Alma</button>
       </div>
+      <div id="downloadAppContainer" style="display:flex;gap:8px;margin-top:8px;">
+        <button class="btn-ghost" style="flex:1;" onclick="downloadApp()">&#x1F4E5; Descargar App</button>
+      </div>
       
     </div>
   </div>
@@ -1839,6 +1842,12 @@
   let calendarDate = new Date();
 
   document.addEventListener('DOMContentLoaded', function() {
+    // Ocultar botón de descargar si ya se descargó
+    if (localStorage.getItem('erudito_downloaded') === 'true') {
+      const dlContainer = document.getElementById('downloadAppContainer');
+      if (dlContainer) dlContainer.style.display = 'none';
+    }
+
     initApp();
   });
 
@@ -2904,7 +2913,28 @@
 
 
   // ===== DETECCION DE PLATAFORMA =====
-  function detectPlatform() {
+  function downloadApp() {
+  try {
+    const htmlContent = document.documentElement.outerHTML;
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'Diario del Erudito.html';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    localStorage.setItem('erudito_downloaded', 'true');
+    const container = document.getElementById('downloadAppContainer');
+    if (container) container.style.display = 'none';
+    showNotification('App descargada como "Diario del Erudito.html"', 'success');
+  } catch (e) {
+    showNotification('Error al descargar: ' + e.message, 'error');
+  }
+}
+
+function detectPlatform() {
     const ua = navigator.userAgent;
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
     const isIOS = /iPad|iPhone|iPod/.test(ua);
