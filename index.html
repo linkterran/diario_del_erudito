@@ -1130,7 +1130,19 @@
       display: none !important;
     }
 
-  </style>
+  
+    /* Fallback CSS: ocultar botón en modo standalone */
+    @media all and (display-mode: standalone) {
+      #installContainer, .install-pwa-btn, .install-hint {
+        display: none !important;
+      }
+    }
+    @media all and (display-mode: fullscreen) {
+      #installContainer, .install-pwa-btn, .install-hint {
+        display: none !important;
+      }
+    }
+</style>
 
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-touch-fullscreen" content="yes">
@@ -3167,81 +3179,128 @@
 
 
 <script>
-// Detección e instalación de PWA
+// Detección e instalación de PWA - Versión robusta
 (function() {
+  'use strict';
+
   var deferredPrompt = null;
-  var installBtn = document.getElementById('installPwaBtn');
   var installContainer = document.getElementById('installContainer');
   var installHint = document.getElementById('installHint');
   var installBtnText = document.getElementById('installBtnText');
+  var installBtn = document.getElementById('installPwaBtn');
 
+  // Detección segura de modo standalone
   function isStandalone() {
-    return window.matchMedia('(display-mode: standalone)').matches ||
-           window.navigator.standalone === true ||
-           document.referrer.startsWith('android-app://');
+    try {
+      // Chrome/Edge/Android: display-mode: standalone
+      if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) {
+        return true;
+      }
+      // iOS Safari
+      if (window.navigator && window.navigator.standalone === true) {
+        return true;
+      }
+      // Android Trusted Web Activity / WebAPK
+      if (document.referrer && document.referrer.indexOf('android-app://') === 0) {
+        return true;
+      }
+      // Firefox/Android
+      if (window.matchMedia && window.matchMedia('(display-mode: fullscreen)').matches) {
+        return true;
+      }
+      // iOS con display-mode: standalone (navegadores modernos)
+      if (window.matchMedia && window.matchMedia('(display-mode: minimal-ui)').matches) {
+        return true;
+      }
+      return false;
+    } catch (e) {
+      return false;
+    }
   }
 
   function hideInstallUI() {
-    if (installContainer) installContainer.style.display = 'none';
+    if (installContainer) {
+      installContainer.style.display = 'none';
+      installContainer.classList.add('hidden');
+    }
     if (installHint) installHint.classList.add('hidden');
+    if (installBtn) installBtn.classList.add('hidden');
   }
 
   function showInstallUI() {
-    if (installContainer) installContainer.style.display = 'block';
+    if (installContainer) {
+      installContainer.style.display = 'block';
+      installContainer.classList.remove('hidden');
+    }
     if (installHint) installHint.classList.remove('hidden');
+    if (installBtn) installBtn.classList.remove('hidden');
   }
 
-  // Si ya está instalada, ocultar inmediatamente
+  // Ocultar inmediatamente si ya está instalada
   if (isStandalone()) {
     hideInstallUI();
     return;
   }
 
-  // Escuchar el evento beforeinstallprompt
+  // Escuchar beforeinstallprompt (Chrome/Edge/Android/PC)
   window.addEventListener('beforeinstallprompt', function(e) {
     e.preventDefault();
     deferredPrompt = e;
     showInstallUI();
-    if (installBtnText) installBtnText.textContent = 'Descargar Grimorio';
   });
 
-  // Si se instaló mientras estaba abierta
+  // Si se instaló mientras la app estaba abierta
   window.addEventListener('appinstalled', function() {
     hideInstallUI();
     deferredPrompt = null;
   });
 
-  // También detectar cambio a standalone (por si acaso)
-  window.matchMedia('(display-mode: standalone)').addEventListener('change', function(e) {
-    if (e.matches) hideInstallUI();
-  });
+  // Detectar cambio a standalone en tiempo real
+  try {
+    var mql = window.matchMedia('(display-mode: standalone)');
+    var handler = function(e) {
+      if (e.matches) hideInstallUI();
+    };
+    if (mql.addEventListener) {
+      mql.addEventListener('change', handler);
+    } else if (mql.addListener) {
+      mql.addListener(handler);
+    }
+  } catch (e) {}
 
   // Función global para instalar
   window.installPWA = function() {
     if (!deferredPrompt) {
-      // Si no hay prompt disponible, mostrar instrucciones según plataforma
-      var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-      if (isIOS) {
-        alert('Para instalar en iOS:
+      var ua = navigator.userAgent || '';
+      var isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+      var isSafari = /^((?!chrome|android).)*safari/i.test(ua);
+
+      if (isIOS || isSafari) {
+        alert('Para instalar en iOS/Safari:
 1. Toca el botón Compartir (□⬆️)
 2. Selecciona "Agregar a Pantalla de Inicio"');
       } else {
         alert('Tu navegador no permite la instalación automática.
-Busca la opción "Agregar a pantalla de inicio" o "Instalar aplicación" en el menú del navegador.');
+Busca "Agregar a pantalla de inicio" o "Instalar aplicación" en el menú del navegador.');
       }
       return;
     }
-    installBtnText.textContent = 'Invocando...';
-    installBtn.disabled = true;
+
+    if (installBtnText) installBtnText.textContent = 'Invocando...';
+    if (installBtn) installBtn.disabled = true;
+
     deferredPrompt.prompt();
     deferredPrompt.userChoice.then(function(choiceResult) {
       if (choiceResult.outcome === 'accepted') {
         hideInstallUI();
       } else {
-        installBtnText.textContent = 'Descargar Grimorio';
-        installBtn.disabled = false;
+        if (installBtnText) installBtnText.textContent = 'Descargar Grimorio';
+        if (installBtn) installBtn.disabled = false;
       }
       deferredPrompt = null;
+    }).catch(function() {
+      if (installBtnText) installBtnText.textContent = 'Descargar Grimorio';
+      if (installBtn) installBtn.disabled = false;
     });
   };
 })();
