@@ -1068,7 +1068,69 @@
     #manualExerciseTime::-webkit-outer-spin-button {
       opacity: 0.5;
     }
-</style>
+
+    /* Botón de instalación PWA */
+    .install-pwa-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin: 20px auto 0;
+      padding: 14px 28px;
+      background: linear-gradient(135deg, #1a1510 0%, #2a2018 100%);
+      border: 1px solid #5a4a3a;
+      border-radius: 8px;
+      color: #c4b49a;
+      font-family: 'Cinzel', serif;
+      font-size: 14px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05);
+      position: relative;
+      overflow: hidden;
+    }
+    .install-pwa-btn::before {
+      content: '';
+      position: absolute;
+      top: 0; left: -100%;
+      width: 100%; height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(139,115,85,0.1), transparent);
+      transition: left 0.5s ease;
+    }
+    .install-pwa-btn:hover::before {
+      left: 100%;
+    }
+    .install-pwa-btn:hover {
+      border-color: #8b7355;
+      color: #e8dcc8;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.5), 0 0 15px rgba(139,115,85,0.15);
+      transform: translateY(-2px);
+    }
+    .install-pwa-btn:active {
+      transform: translateY(0);
+    }
+    .install-pwa-btn .icon {
+      font-size: 18px;
+      filter: drop-shadow(0 0 4px rgba(139,115,85,0.3));
+    }
+    .install-pwa-btn.hidden {
+      display: none !important;
+    }
+    .install-hint {
+      text-align: center;
+      font-size: 11px;
+      color: #5a4a3a;
+      margin-top: 8px;
+      font-style: italic;
+      letter-spacing: 0.5px;
+    }
+    .install-hint.hidden {
+      display: none !important;
+    }
+
+  </style>
 
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-touch-fullscreen" content="yes">
@@ -1420,6 +1482,13 @@
       <p style="font-size:12px; color:#5a4a3a; text-align:center; margin-top:24px; font-style:italic;">
         Ph'nglui mglw'nafh Cthulhu R'lyeh wgah'nagl fhtagn
       </p>
+      <div style="text-align:center; margin-top:28px;" id="installContainer">
+        <button class="install-pwa-btn" id="installPwaBtn" onclick="installPWA()">
+          <span class="icon">&#x1F4BE;</span>
+          <span id="installBtnText">Descargar Grimorio</span>
+        </button>
+        <div class="install-hint" id="installHint">Instala esta aplicación para usarla sin conexión</div>
+      </div>
     </div>
   </div>
 </div>
@@ -3096,6 +3165,87 @@
 
 
 
+
+<script>
+// Detección e instalación de PWA
+(function() {
+  var deferredPrompt = null;
+  var installBtn = document.getElementById('installPwaBtn');
+  var installContainer = document.getElementById('installContainer');
+  var installHint = document.getElementById('installHint');
+  var installBtnText = document.getElementById('installBtnText');
+
+  function isStandalone() {
+    return window.matchMedia('(display-mode: standalone)').matches ||
+           window.navigator.standalone === true ||
+           document.referrer.startsWith('android-app://');
+  }
+
+  function hideInstallUI() {
+    if (installContainer) installContainer.style.display = 'none';
+    if (installHint) installHint.classList.add('hidden');
+  }
+
+  function showInstallUI() {
+    if (installContainer) installContainer.style.display = 'block';
+    if (installHint) installHint.classList.remove('hidden');
+  }
+
+  // Si ya está instalada, ocultar inmediatamente
+  if (isStandalone()) {
+    hideInstallUI();
+    return;
+  }
+
+  // Escuchar el evento beforeinstallprompt
+  window.addEventListener('beforeinstallprompt', function(e) {
+    e.preventDefault();
+    deferredPrompt = e;
+    showInstallUI();
+    if (installBtnText) installBtnText.textContent = 'Descargar Grimorio';
+  });
+
+  // Si se instaló mientras estaba abierta
+  window.addEventListener('appinstalled', function() {
+    hideInstallUI();
+    deferredPrompt = null;
+  });
+
+  // También detectar cambio a standalone (por si acaso)
+  window.matchMedia('(display-mode: standalone)').addEventListener('change', function(e) {
+    if (e.matches) hideInstallUI();
+  });
+
+  // Función global para instalar
+  window.installPWA = function() {
+    if (!deferredPrompt) {
+      // Si no hay prompt disponible, mostrar instrucciones según plataforma
+      var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+      if (isIOS) {
+        alert('Para instalar en iOS:
+1. Toca el botón Compartir (□⬆️)
+2. Selecciona "Agregar a Pantalla de Inicio"');
+      } else {
+        alert('Tu navegador no permite la instalación automática.
+Busca la opción "Agregar a pantalla de inicio" o "Instalar aplicación" en el menú del navegador.');
+      }
+      return;
+    }
+    installBtnText.textContent = 'Invocando...';
+    installBtn.disabled = true;
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(function(choiceResult) {
+      if (choiceResult.outcome === 'accepted') {
+        hideInstallUI();
+      } else {
+        installBtnText.textContent = 'Descargar Grimorio';
+        installBtn.disabled = false;
+      }
+      deferredPrompt = null;
+    });
+  };
+})();
+</script>
 
 <script>
 // Registro del Service Worker para uso offline
