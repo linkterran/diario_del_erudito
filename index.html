@@ -3121,5 +3121,41 @@ function detectPlatform() {
 
 
 
+
+<script>
+// Registrar Service Worker inline para hacer la app instalable
+if ('serviceWorker' in navigator) {
+  const swCode = `
+    const CACHE_NAME = 'diario-erudito-v1';
+    const urlsToCache = ['./'];
+
+    self.addEventListener('install', event => {
+      event.waitUntil(
+        caches.open(CACHE_NAME)
+          .then(cache => cache.addAll(urlsToCache))
+      );
+      self.skipWaiting();
+    });
+
+    self.addEventListener('fetch', event => {
+      event.respondWith(
+        caches.match(event.request)
+          .then(response => {
+            if (response) return response;
+            return fetch(event.request);
+          })
+      );
+    });
+  `;
+
+  const blob = new Blob([swCode], { type: 'application/javascript' });
+  const swUrl = URL.createObjectURL(blob);
+
+  navigator.serviceWorker.register(swUrl)
+    .then(reg => console.log('SW registrado:', reg.scope))
+    .catch(err => console.log('SW error:', err));
+}
+</script>
+
 </body>
 </html>
