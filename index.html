@@ -358,6 +358,54 @@
     margin-left: 8px;
   }
 
+  .entries-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .entries-group-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    padding: 10px 14px;
+    background: rgba(139,115,85,0.08);
+    border: 1px solid #2a1a0a;
+    border-radius: 4px;
+    transition: all 0.3s;
+  }
+  .entries-group-header:hover {
+    border-color: #5a4a3a;
+    background: rgba(139,115,85,0.14);
+  }
+  .entries-group-chevron {
+    color: #8b7355;
+    font-size: 11px;
+    width: 12px;
+    flex-shrink: 0;
+  }
+  .entries-group-label {
+    font-family: 'Cinzel', serif;
+    font-size: 13px;
+    color: #8b7355;
+    letter-spacing: 0.5px;
+    flex: 1;
+  }
+  .entries-group-count {
+    font-size: 11px;
+    color: #5a4a3a;
+    background: rgba(0,0,0,0.3);
+    padding: 2px 8px;
+    border-radius: 10px;
+    flex-shrink: 0;
+  }
+  .entries-group-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-left: 4px;
+  }
+
   .empty-state {
     text-align: center;
     padding: 48px 24px;
@@ -1793,6 +1841,22 @@
         'Los antiguos luchadores forjaban sus cuellos así. Protege el recipiente que contiene tu mente.'
       ]
     },
+    {
+      id: 'grip_trainer_hold',
+      name: 'El Grillete Eterno',
+      icon: '🗜️',
+      difficulty: 'Acólito',
+      desc: 'Overcoming isometric con grip trainer (hand gripper). Ciérralo con toda tu fuerza y mantenlo sellado el mayor tiempo posible. El temporizador marca la meta minima: si tus manos aun tienen fuerza cuando termine, sigue apretando.',
+      duration: 45,
+      steps: [
+        'Sujeta el grip trainer con una mano, dedos envolviendo el mango, palma firme contra el resorte.',
+        'Cierra el gripper con toda tu fuerza hasta juntar ambos mangos por completo.',
+        'Manten el agarre sellado sin dejar que el resorte se abra ni un milimetro.',
+        'Respira de forma controlada. La tension vive en los antebrazos, no en la mandibula.',
+        'Cuando el temporizador termine, si aun puedes sostenerlo, continua hasta el fallo total.',
+        'Cambia de mano a la mitad del ritual. El equilibrio entre ambos brazos es la verdadera prueba.'
+      ]
+    },
 
     {
       id: 'trote',
@@ -1825,6 +1889,11 @@
   let studyStats = JSON.parse(localStorage.getItem('lovecraft_study_stats') || '{"sessions":0,"minutes":0,"lastDate":"","streak":0,"log":[]}');
   let todayStudySessions = 0;
   let didExerciseBeforeStudy = false;
+  // pomodoroEndAt: marca de tiempo real (Date.now()) en la que debe terminar la fase actual.
+  // Usar una marca de tiempo absoluta (en vez de solo restar 1 cada segundo) evita que el
+  // ritual se desincronice cuando el telefono suspende la pestana/PWA en segundo plano.
+  let pomodoroEndAt = null;
+  let wakeLockSentinel = null;
 
   // ===== CALENDARIO =====
   let calendarDate = new Date();
@@ -2018,7 +2087,7 @@
     if (tab === 'body') renderExercises();
     if (tab === 'rastro') { renderCalendar(); renderSanityChart(); }
     if (tab === 'pact') renderPact();
-    if (tab === 'sync') showDeviceInfo();
+    if (tab === 'sync') detectPlatform();
     if (!audioEnabled) return;
     if (tab === 'meditate') playAmbient('meditate');
     else if (tab === 'body') playAmbient('exercise');
@@ -2103,22 +2172,108 @@
     recordRitual();
     checkPactProgress();
   }
+  // Grupos de entradas actualmente expandidos (por defecto: la semana en curso).
+  const expandedEntryGroups = new Set(['current']);
+  let entryGroupsInitialized = false;
+
+  function startOfWeek(date) {
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    const day = d.getDay(); // 0=domingo .. 6=sabado
+    const diff = (day === 0 ? -6 : 1) - day; // retrocede hasta el lunes
+    d.setDate(d.getDate() + diff);
+    return d;
+  }
+  function formatWeekLabel(weekStart) {
+    const end = new Date(weekStart);
+    end.setDate(end.getDate() + 6);
+    const monthName = end.toLocaleDateString('es-ES', { month: 'long' });
+    return 'Semana del ' + weekStart.getDate() + ' al ' + end.getDate() + ' de ' + monthName;
+  }
+  function formatMonthLabel(date) {
+    const label = date.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+    return label.charAt(0).toUpperCase() + label.slice(1);
+  }
+  function toggleEntriesGroup(key) {
+    if (expandedEntryGroups.has(key)) {
+      expandedEntryGroups.delete(key);
+    } else {
+      expandedEntryGroups.add(key);
+    }
+    renderEntries();
+  }
+  function renderEntryCard(entry) {
+    return '<div class="entry-card" onclick="openEntry(' + entry.id + ')">' +
+      '<div class="entry-card-header">' +
+        '<h3 class="entry-card-title">' + escapeHtml(entry.title) + '</h3>' +
+        '<div style="display:flex;align-items:center;gap:8px;">' +
+          '<span class="entry-card-mood">' + moodIcons[entry.mood] + '</span>' +
+          '<span class="entry-card-date">' + entry.date + '</span>' +
+        '</div>' +
+      '</div>' +
+      '<div class="entry-card-preview">' + escapeHtml(entry.body) + '</div>' +
+    '</div>';
+  }
   function renderEntries() {
     const list = document.getElementById('entriesList');
     if (entries.length === 0) {
       list.innerHTML = '<div class="empty-state"><div class="empty-icon">&#x1F4DC;</div><p>Las paginas estan en blanco... por ahora.<br>Escribe tu primera entrada y despierta lo que duerme.</p></div>';
       return;
     }
-    list.innerHTML = entries.map(function(entry) {
-      return '<div class="entry-card" onclick="openEntry(' + entry.id + ')">' +
-        '<div class="entry-card-header">' +
-          '<h3 class="entry-card-title">' + escapeHtml(entry.title) + '</h3>' +
-          '<div style="display:flex;align-items:center;gap:8px;">' +
-            '<span class="entry-card-mood">' + moodIcons[entry.mood] + '</span>' +
-            '<span class="entry-card-date">' + entry.date + '</span>' +
-          '</div>' +
+
+    // Las entradas se agrupan primero por semana (dentro del mes en curso) y luego
+    // por mes completo para las mas antiguas, para no saturar la seccion y facilitar
+    // releerlas. entry.id es un timestamp (Date.now() al crearla), asi que sirve para
+    // ubicar cada entrada en su semana/mes real sin depender del texto de la fecha.
+    const now = new Date();
+    const currentWeekStart = startOfWeek(now);
+    const currentMonthKey = now.getFullYear() + '-' + now.getMonth();
+
+    const groupOrder = [];
+    const groupsMap = {};
+    entries.forEach(function(entry) {
+      const entryDate = new Date(entry.id);
+      const entryWeekStart = startOfWeek(entryDate);
+      const entryMonthKey = entryDate.getFullYear() + '-' + entryDate.getMonth();
+      let key, label;
+      if (entryWeekStart.getTime() === currentWeekStart.getTime()) {
+        key = 'current';
+        label = 'Esta semana';
+      } else if (entryMonthKey === currentMonthKey) {
+        key = 'week-' + entryWeekStart.getTime();
+        label = formatWeekLabel(entryWeekStart);
+      } else {
+        key = 'month-' + entryMonthKey;
+        label = formatMonthLabel(entryDate);
+      }
+      if (!groupsMap[key]) {
+        groupsMap[key] = { key: key, label: label, entries: [] };
+        groupOrder.push(key);
+      }
+      groupsMap[key].entries.push(entry);
+    });
+
+    // La primera vez que se renderiza, si no hay entradas de "esta semana", se abre
+    // automaticamente el grupo mas reciente para que la lista no aparezca vacia.
+    if (!entryGroupsInitialized) {
+      entryGroupsInitialized = true;
+      if (!groupsMap['current'] && groupOrder.length > 0) {
+        expandedEntryGroups.add(groupOrder[0]);
+      }
+    }
+
+    list.innerHTML = groupOrder.map(function(key) {
+      const group = groupsMap[key];
+      const isExpanded = expandedEntryGroups.has(key);
+      const chevron = isExpanded ? '\u25BE' : '\u25B8';
+      const bodyHtml = isExpanded ? group.entries.map(renderEntryCard).join('') : '';
+      return '<div class="entries-group">' +
+        '<div class="entries-group-header" onclick="toggleEntriesGroup(\'' + key + '\')">' +
+          '<span class="entries-group-chevron">' + chevron + '</span>' +
+          '<span class="entries-group-label">' + escapeHtml(group.label) + '</span>' +
+          '<span class="entries-group-count">' + group.entries.length + '</span>' +
         '</div>' +
-        '<div class="entry-card-preview">' + escapeHtml(entry.body) + '</div>' +
+        '<div class="entries-group-body">' + bodyHtml + '</div>' +
       '</div>';
     }).join('');
   }
@@ -2183,8 +2338,9 @@
     if (!meditationRunning) updateMeditationDisplay();
   }
   function updateMeditationDisplay() {
-    const m = Math.floor(meditationTimeLeft / 60).toString().padStart(2, '0');
-    const s = (meditationTimeLeft % 60).toString().padStart(2, '0');
+    const safeTime = Math.max(0, meditationTimeLeft);
+    const m = Math.floor(safeTime / 60).toString().padStart(2, '0');
+    const s = (safeTime % 60).toString().padStart(2, '0');
     document.getElementById('meditationTimer').textContent = m + ':' + s;
   }
   function toggleMeditation() {
@@ -2200,8 +2356,10 @@
     document.getElementById('meditationPhrases').style.display = 'block';
     document.getElementById('breathInstruction').textContent = 'Inhala profundamente por la nariz...';
     startBreathCycle();
+    clearInterval(meditationInterval);
     meditationInterval = setInterval(function() {
       meditationTimeLeft--;
+      if (meditationTimeLeft < 0) meditationTimeLeft = 0;
       updateMeditationDisplay();
       if (meditationTimeLeft <= 0) {
         stopMeditation();
@@ -2326,7 +2484,7 @@
         '<button class="btn-primary" onclick="logManualExercise()">' +
         '<span>⚡</span> Registrar Trote</button></div>' +
         '<ol class="exercise-steps">' + activeExercise.steps.map(function(s) { return '<li>' + s + '</li>'; }).join('') + '</ol>';
-      exerciseTimeRemaining = 0;
+      exerciseTimeLeft = 0;
       exerciseRunning = false;
       clearInterval(exerciseInterval);
     } else {
@@ -2334,14 +2492,14 @@
         activeExercise.name + ' <span class="difficulty-tag">' + activeExercise.difficulty + '</span></div>' +
         '<p style="font-size:12px;color:#5a4a3a;margin-bottom:12px;">' + activeExercise.desc + '</p>' +
         '<div class="exercise-timer-display" id="exerciseTimerDisplay">' + formatTime(activeExercise.duration) + '</div>' +
-        '<div class="exercise-timer-bar"><div class="exercise-timer-fill" id="exerciseTimerBar"></div></div>' +
+        '<div class="exercise-timer-bar"><div class="exercise-timer-fill" id="exerciseTimerFill"></div></div>' +
         '<div class="timer-controls">' +
         '<button class="btn-primary" id="exerciseStartBtn" onclick="toggleExerciseTimer()">' +
         '<span>⚡</span> Iniciar</button>' +
         '<button class="btn-secondary" onclick="resetExerciseTimer()" id="exerciseResetBtn" style="display:none;">' +
         '<span>↺</span> Reiniciar</button></div>' +
         '<ol class="exercise-steps">' + activeExercise.steps.map(function(s) { return '<li>' + s + '</li>'; }).join('') + '</ol>';
-      exerciseTimeRemaining = activeExercise.duration;
+      exerciseTimeLeft = activeExercise.duration;
       exerciseRunning = false;
       clearInterval(exerciseInterval);
     }
@@ -2365,8 +2523,10 @@
     exerciseRunning = true;
     document.getElementById('exerciseStartBtn').textContent = 'Pausar Prueba';
     const total = activeExercise.duration;
+    clearInterval(exerciseInterval);
     exerciseInterval = setInterval(function() {
       exerciseTimeLeft--;
+      if (exerciseTimeLeft < 0) exerciseTimeLeft = 0;
       updateExerciseDisplay();
       if (exerciseTimeLeft <= 0) {
         clearInterval(exerciseInterval);
@@ -2446,12 +2606,15 @@
     renderExercises();
   }
   function updateExerciseDisplay() {
-    const m = Math.floor(exerciseTimeLeft / 60).toString().padStart(2, '0');
-    const s = (exerciseTimeLeft % 60).toString().padStart(2, '0');
-    document.getElementById('exerciseTimerDisplay').textContent = m + ':' + s;
+    const safeTime = Math.max(0, exerciseTimeLeft);
+    const m = Math.floor(safeTime / 60).toString().padStart(2, '0');
+    const s = (safeTime % 60).toString().padStart(2, '0');
+    const displayEl = document.getElementById('exerciseTimerDisplay');
+    if (displayEl) displayEl.textContent = m + ':' + s;
     if (activeExercise && activeExercise.duration > 0) {
-      const pct = (exerciseTimeLeft / activeExercise.duration) * 100;
-      document.getElementById('exerciseTimerFill').style.width = pct + '%';
+      const pct = Math.max(0, Math.min(100, (safeTime / activeExercise.duration) * 100));
+      const fillEl = document.getElementById('exerciseTimerFill');
+      if (fillEl) fillEl.style.width = pct + '%';
     }
   }
 
@@ -2474,27 +2637,41 @@
     } else {
       document.getElementById('synergyMsg').textContent = '';
     }
-    const totalTime = pomodoroPhase === 'work' ? workTime : (pomodoroPhase === 'shortBreak' ? 5 * 60 : 15 * 60);
     if (pomodoroPhase === 'work' && pomodoroTime === 25 * 60 && didExerciseBeforeStudy) {
       pomodoroTime = workTime;
     }
-    pomodoroInterval = setInterval(function() {
-      pomodoroTime--;
-      updatePomodoroDisplay();
-      if (pomodoroTime <= 0) {
-        completePomodoroPhase();
-      }
-    }, 1000);
+    // Ancla el final de la fase a un instante real. Aunque el navegador pause los
+    // setInterval en segundo plano (comun en Android al bloquear pantalla o cambiar de
+    // app), al recalcular contra Date.now() el temporizador siempre muestra el tiempo
+    // correcto en cuanto vuelve a ejecutarse, en vez de quedarse congelado o atrasado.
+    pomodoroEndAt = Date.now() + pomodoroTime * 1000;
+    requestPomodoroWakeLock();
+    clearInterval(pomodoroInterval);
+    pomodoroInterval = setInterval(pomodoroTick, 1000);
+    pomodoroTick();
+  }
+  function pomodoroTick() {
+    if (!pomodoroRunning || !pomodoroEndAt) return;
+    const remaining = Math.round((pomodoroEndAt - Date.now()) / 1000);
+    pomodoroTime = Math.max(0, remaining);
+    updatePomodoroDisplay();
+    if (pomodoroTime <= 0) {
+      completePomodoroPhase();
+    }
   }
   function pausePomodoro() {
     pomodoroRunning = false;
     clearInterval(pomodoroInterval);
+    pomodoroEndAt = null;
+    releasePomodoroWakeLock();
     document.getElementById('pomodoroToggle').textContent = 'Reanudar Ritual';
     document.getElementById('pomodoroLabel').textContent = 'El ritual esta pausado...';
   }
   function resetPomodoro() {
     pomodoroRunning = false;
     clearInterval(pomodoroInterval);
+    pomodoroEndAt = null;
+    releasePomodoroWakeLock();
     pomodoroPhase = 'work';
     pomodoroTime = 25 * 60;
     pomodoroCycle = 0;
@@ -2504,9 +2681,41 @@
     document.getElementById('pomodoroLabel').textContent = 'Preparando el ritual...';
     document.getElementById('synergyMsg').textContent = '';
   }
+  // ===== WAKE LOCK (mantener la pantalla activa durante el ritual en Android) =====
+  async function requestPomodoroWakeLock() {
+    try {
+      if ('wakeLock' in navigator) {
+        wakeLockSentinel = await navigator.wakeLock.request('screen');
+        wakeLockSentinel.addEventListener('release', function() {
+          wakeLockSentinel = null;
+        });
+      }
+    } catch (err) {
+      // Si el navegador rechaza el wake lock (ej. bateria baja), el ritual sigue
+      // funcionando igual gracias al calculo por marca de tiempo.
+      wakeLockSentinel = null;
+    }
+  }
+  function releasePomodoroWakeLock() {
+    if (wakeLockSentinel) {
+      try { wakeLockSentinel.release(); } catch (err) {}
+      wakeLockSentinel = null;
+    }
+  }
+  // Al volver de segundo plano (pantalla bloqueada, cambio de app, etc.) recalculamos
+  // de inmediato en vez de esperar al siguiente tick, y volvemos a pedir el wake lock,
+  // ya que Android lo libera automaticamente cuando la app deja de estar visible.
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'visible' && pomodoroRunning) {
+      pomodoroTick();
+      requestPomodoroWakeLock();
+    }
+  });
   function completePomodoroPhase() {
     clearInterval(pomodoroInterval);
     pomodoroRunning = false;
+    pomodoroEndAt = null;
+    releasePomodoroWakeLock();
     if (pomodoroPhase === 'work') {
       pomodoroCycle++;
       let mins = didExerciseBeforeStudy ? 30 : 25;
