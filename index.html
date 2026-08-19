@@ -663,6 +663,28 @@
     width: 100%;
     transition: width 1s linear;
   }
+  .exercise-phase-label {
+    text-align: center;
+    font-family: 'Cinzel', serif;
+    font-size: 13px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+    transition: color 0.3s;
+  }
+  .exercise-phase-label.phase-work { color: #cd6b3f; }
+  .exercise-phase-label.phase-rest { color: #6b9bcd; }
+  .exercise-timer-display.phase-work { color: #cd6b3f; }
+  .exercise-timer-display.phase-rest { color: #6b9bcd; }
+  .exercise-total-time {
+    text-align: center;
+    font-family: 'Cinzel', serif;
+    font-size: 11px;
+    color: #5a4a3a;
+    letter-spacing: 1px;
+    margin-top: -8px;
+    margin-bottom: 12px;
+  }
   .timer-controls {
     display: flex;
     gap: 8px;
@@ -1793,13 +1815,14 @@
       name: 'Agarre del Vacio',
       icon: '\u270A',
       difficulty: 'Iniciado',
-      desc: 'Aprieta el puno con maxima fuerza durante 10 segundos. Descansa 5. Repite.',
+      desc: 'Ciclos guiados de agarre: 10 segundos de aprieto maximo, 5 de descanso. El temporizador marca cada fase por ti.',
       duration: 120,
+      interval: { work: 10, rest: 5 },
       steps: [
         'Cierra ambos punos con toda tu fuerza. Imagina que retienes un secreto antiguo.',
-        'Manten el agarre durante 10 segundos. Siente los tendones tensarse.',
-        'Abre las manos completamente durante 5 segundos. Relaja.',
-        'Repite el ciclo. No hay descanso total, solo momentos de tregua.',
+        'Manten el agarre durante la fase de APRIETA. Siente los tendones tensarse.',
+        'Abre las manos completamente durante la fase de DESCANSA. Relaja.',
+        'El temporizador alternara ambas fases automaticamente hasta completar el ciclo total.',
         'Este ejercicio fortalece tendones de manos, munecas y antebrazos.'
       ]
     },
@@ -2002,6 +2025,8 @@
   let exerciseRunning = false;
   let todayExercises = [];
   let exerciseTrialMode = false; // true cuando la serie activa es El Reto de Tiempo
+  let exercisePhase = null; // 'work' | 'rest' | null (ejercicios sin intervalos guiados)
+  let exercisePhaseTimeLeft = 0;
 
   // ===== PROGRESION DE LA FORJA =====
   // Cada ejercicio guarda su propio conteo de repeticiones superadas dentro del nivel actual.
@@ -2767,12 +2792,22 @@
         }
       }
 
+      const hasInterval = !!activeExercise.interval;
+      const phaseLabelHtml = hasInterval ?
+        '<div class="exercise-phase-label phase-work" id="exercisePhaseLabel">🤜 Aprieta</div>' : '';
+      const timerDisplayClass = hasInterval ? 'exercise-timer-display phase-work' : 'exercise-timer-display';
+      const timerDisplayValue = hasInterval ? activeExercise.interval.work : formatTime(effDuration);
+      const totalTimeHtml = hasInterval ?
+        '<div class="exercise-total-time" id="exerciseTotalTime">Tiempo restante del ciclo: ' + formatTime(effDuration) + '</div>' : '';
+
       detail.innerHTML = '<div class="exercise-name" style="font-size:16px;margin-bottom:8px;">' + 
         activeExercise.name + ' <span class="difficulty-tag">' + activeExercise.difficulty + '</span></div>' +
         '<p style="font-size:12px;color:#5a4a3a;margin-bottom:12px;">' + activeExercise.desc + '</p>' +
         renderExerciseLevelInfo(activeExercise, 'margin-bottom:12px;') +
         trialSection +
-        '<div class="exercise-timer-display" id="exerciseTimerDisplay">' + formatTime(effDuration) + '</div>' +
+        phaseLabelHtml +
+        '<div class="' + timerDisplayClass + '" id="exerciseTimerDisplay">' + timerDisplayValue + '</div>' +
+        totalTimeHtml +
         '<div class="exercise-timer-bar"><div class="exercise-timer-fill" id="exerciseTimerFill"></div></div>' +
         '<div class="timer-controls">' +
         '<button class="' + startBtnClass + '" id="exerciseStartBtn" onclick="toggleExerciseTimer()">' +
@@ -2784,6 +2819,8 @@
         '<ol class="exercise-steps">' + activeExercise.steps.map(function(s) { return '<li>' + s + '</li>'; }).join('') + '</ol>';
       exerciseTimeLeft = effDuration;
       exerciseRunning = false;
+      exercisePhase = hasInterval ? 'work' : null;
+      exercisePhaseTimeLeft = hasInterval ? activeExercise.interval.work : 0;
       clearInterval(exerciseInterval);
     }
     detail.style.display = 'block';
@@ -2797,11 +2834,16 @@
   }
   function startExerciseTimer() {
     if (!activeExercise) return;
+    const hasInterval = !!activeExercise.interval;
     if (exerciseTimeLeft <= 0) {
       let dur = exerciseTrialMode ? getTrialDuration(activeExercise) : getEffectiveDuration(activeExercise);
       const moon = getMoonModifier();
       if (moon === 2) dur += 5;
       exerciseTimeLeft = dur;
+      if (hasInterval) {
+        exercisePhase = 'work';
+        exercisePhaseTimeLeft = activeExercise.interval.work;
+      }
     }
     exerciseRunning = true;
     document.getElementById('exerciseStartBtn').textContent = exerciseTrialMode ? 'Pausar el Reto' : 'Pausar Prueba';
@@ -2809,6 +2851,16 @@
     exerciseInterval = setInterval(function() {
       exerciseTimeLeft--;
       if (exerciseTimeLeft < 0) exerciseTimeLeft = 0;
+      if (hasInterval && exerciseTimeLeft > 0) {
+        exercisePhaseTimeLeft--;
+        if (exercisePhaseTimeLeft <= 0) {
+          exercisePhase = exercisePhase === 'work' ? 'rest' : 'work';
+          exercisePhaseTimeLeft = exercisePhase === 'work' ? activeExercise.interval.work : activeExercise.interval.rest;
+          if (window.navigator && navigator.vibrate) {
+            try { navigator.vibrate(exercisePhase === 'work' ? [80, 40, 80] : 60); } catch (e) {}
+          }
+        }
+      }
       updateExerciseDisplay();
       if (exerciseTimeLeft <= 0) {
         clearInterval(exerciseInterval);
@@ -2860,6 +2912,10 @@
       const moon = getMoonModifier();
       if (moon === 2) dur += 5;
       exerciseTimeLeft = dur;
+      if (activeExercise.interval) {
+        exercisePhase = 'work';
+        exercisePhaseTimeLeft = activeExercise.interval.work;
+      }
     } else {
       exerciseTimeLeft = 0;
     }
@@ -2948,12 +3004,34 @@
   }
   function updateExerciseDisplay() {
     const safeTime = Math.max(0, exerciseTimeLeft);
-    const m = Math.floor(safeTime / 60).toString().padStart(2, '0');
-    const s = (safeTime % 60).toString().padStart(2, '0');
+    const hasInterval = activeExercise && !!activeExercise.interval;
     const displayEl = document.getElementById('exerciseTimerDisplay');
-    if (displayEl) displayEl.textContent = m + ':' + s;
+    if (displayEl) {
+      if (hasInterval) {
+        displayEl.textContent = String(Math.max(0, exercisePhaseTimeLeft));
+        displayEl.classList.remove('phase-work', 'phase-rest');
+        displayEl.classList.add(exercisePhase === 'rest' ? 'phase-rest' : 'phase-work');
+      } else {
+        const m = Math.floor(safeTime / 60).toString().padStart(2, '0');
+        const s = (safeTime % 60).toString().padStart(2, '0');
+        displayEl.textContent = m + ':' + s;
+      }
+    }
+    const phaseLabelEl = document.getElementById('exercisePhaseLabel');
+    if (phaseLabelEl) {
+      phaseLabelEl.classList.remove('phase-work', 'phase-rest');
+      if (exercisePhase === 'rest') {
+        phaseLabelEl.classList.add('phase-rest');
+        phaseLabelEl.textContent = '🖐 Descansa';
+      } else {
+        phaseLabelEl.classList.add('phase-work');
+        phaseLabelEl.textContent = '🤜 Aprieta';
+      }
+    }
+    const totalTimeEl = document.getElementById('exerciseTotalTime');
+    if (totalTimeEl) totalTimeEl.textContent = 'Tiempo restante del ciclo: ' + formatTime(safeTime);
     if (activeExercise && activeExercise.duration > 0) {
-      const effDur = getEffectiveDuration(activeExercise);
+      const effDur = exerciseTrialMode ? getTrialDuration(activeExercise) : getEffectiveDuration(activeExercise);
       const pct = Math.max(0, Math.min(100, (safeTime / effDur) * 100));
       const fillEl = document.getElementById('exerciseTimerFill');
       if (fillEl) fillEl.style.width = pct + '%';
