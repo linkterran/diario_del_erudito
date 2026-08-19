@@ -694,6 +694,128 @@
     letter-spacing: 1px;
     margin-left: auto;
   }
+  .exercise-level-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border: 1px solid #4a2f1a;
+    border-radius: 2px;
+    font-size: 10px;
+    color: #cd853f;
+    font-family: 'Cinzel', serif;
+    letter-spacing: 1px;
+    white-space: nowrap;
+  }
+  .exercise-level-bar {
+    width: 100%;
+    height: 3px;
+    background: #1a1a1a;
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 8px;
+  }
+  .exercise-level-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #a0522d, #cd853f);
+    transition: width 0.4s ease;
+  }
+  .exercise-level-info {
+    font-size: 10px;
+    color: #5a4a3a;
+    margin-top: 4px;
+    display: flex;
+    justify-content: space-between;
+    font-family: 'Cinzel', serif;
+    letter-spacing: 0.5px;
+  }
+  .exercise-levelup-msg {
+    text-align: center;
+    font-size: 11px;
+    color: #cd853f;
+    font-family: 'Cinzel', serif;
+    letter-spacing: 1px;
+    margin-top: 10px;
+    min-height: 14px;
+  }
+  .trial-callout {
+    margin-bottom: 12px;
+    padding: 10px 12px;
+    border: 1px solid #4a2f1a;
+    border-radius: 4px;
+    background: rgba(160, 82, 45, 0.08);
+  }
+  .trial-callout.ready {
+    border-color: #cd853f;
+    box-shadow: 0 0 10px rgba(205,133,63,0.12);
+  }
+  .trial-callout.consolidation {
+    border-color: #6a3a1a;
+  }
+  .trial-callout strong {
+    display: block;
+    font-family: 'Cinzel', serif;
+    font-size: 12px;
+    color: #cd853f;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+  }
+  .trial-callout.consolidation strong { color: #a0693f; }
+  .trial-callout p {
+    font-size: 11px;
+    color: #7a6a5a;
+    margin: 0;
+    line-height: 1.5;
+  }
+  .btn-trial {
+    background: linear-gradient(180deg, #a0522d, #6b3a1a) !important;
+    color: #f0d9b5 !important;
+    border-color: #cd853f !important;
+  }
+  .btn-trial:hover {
+    box-shadow: 0 0 15px rgba(205,133,63,0.35) !important;
+  }
+  .trial-confirm {
+    margin-top: 14px;
+    text-align: center;
+    padding: 12px;
+    border: 1px solid #4a2f1a;
+    border-radius: 4px;
+    background: rgba(0,0,0,0.25);
+  }
+  .trial-confirm p {
+    font-size: 12px;
+    color: #cd853f;
+    font-family: 'Cinzel', serif;
+    letter-spacing: 0.5px;
+    margin: 0 0 12px 0;
+    line-height: 1.6;
+  }
+  .trial-confirm-btns {
+    display: flex;
+    gap: 8px;
+  }
+  .trial-confirm-btns button {
+    flex: 1;
+    padding: 10px;
+    border-radius: 3px;
+    font-family: 'Cinzel', serif;
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.3s;
+  }
+  .trial-btn-yes {
+    background: linear-gradient(180deg, #2d4a2f, #1a2e1c);
+    border: 1px solid #4a7a4f;
+    color: #a0d0a5;
+  }
+  .trial-btn-yes:hover { box-shadow: 0 0 12px rgba(74,122,79,0.3); }
+  .trial-btn-no {
+    background: linear-gradient(180deg, #4a1a1a, #2e1010);
+    border: 1px solid #7a4a4a;
+    color: #d0a0a0;
+  }
+  .trial-btn-no:hover { box-shadow: 0 0 12px rgba(122,74,74,0.3); }
 
   /* === ESTUDIO === */
   .pomodoro-display {
@@ -1879,6 +2001,134 @@
   let exerciseInterval = null;
   let exerciseRunning = false;
   let todayExercises = [];
+  let exerciseTrialMode = false; // true cuando la serie activa es El Reto de Tiempo
+
+  // ===== PROGRESION DE LA FORJA =====
+  // Cada ejercicio guarda su propio conteo de repeticiones superadas dentro del nivel actual.
+  // Al llegar a EXERCISE_LEVEL_STEP (4/4) en un ejercicio isometrico, la barra NO asciende
+  // automaticamente: se desbloquea El Reto de Tiempo, una serie unica con temporizador
+  // extendido que exige una confirmacion de forma (La Confirmacion del Templario/Acolito)
+  // antes de ascender oficialmente de nivel. Si la prueba falla, la barra retrocede a 3/4
+  // y se exige una sesion de consolidacion antes de poder reintentar el reto.
+  let exerciseProgress = JSON.parse(localStorage.getItem('lovecraft_exercise_progress') || '{}');
+  const EXERCISE_LEVEL_TITLES = ['Iniciado', 'Forjado', 'Templado', 'Endurecido', 'Inquebrantable'];
+  const EXERCISE_LEVEL_STEP = 4;
+  const EXERCISE_MAX_LEVEL = EXERCISE_LEVEL_TITLES.length;
+  const EXERCISE_LEVEL_MULT = [1, 1.15, 1.3, 1.5, 1.75];
+  const TRIAL_MIN_SECONDS = 45;
+
+  function getExerciseProgressData(id) {
+    if (!exerciseProgress[id]) {
+      exerciseProgress[id] = { level: 1, completionsInLevel: 0, trialUnlocked: false, needsConsolidation: false };
+    } else if (exerciseProgress[id].level === undefined) {
+      // Migracion desde el formato anterior, que solo guardaba un conteo total de completions.
+      const p = exerciseProgress[id];
+      const oldCompletions = p.completions || 0;
+      const level = Math.min(EXERCISE_MAX_LEVEL, Math.floor(oldCompletions / EXERCISE_LEVEL_STEP) + 1);
+      const isMax = level >= EXERCISE_MAX_LEVEL;
+      const completionsInLevel = isMax ? 0 : Math.min(EXERCISE_LEVEL_STEP - 1, oldCompletions - (level - 1) * EXERCISE_LEVEL_STEP);
+      p.level = level;
+      p.completionsInLevel = completionsInLevel;
+      p.trialUnlocked = false;
+      p.needsConsolidation = false;
+    }
+    return exerciseProgress[id];
+  }
+  function getExerciseLevel(id) {
+    const p = getExerciseProgressData(id);
+    const isMax = p.level >= EXERCISE_MAX_LEVEL;
+    const completionsInLevel = isMax ? 0 : (p.completionsInLevel || 0);
+    return {
+      level: p.level,
+      title: EXERCISE_LEVEL_TITLES[p.level - 1],
+      completionsInLevel: completionsInLevel,
+      neededForNext: EXERCISE_LEVEL_STEP,
+      progressPct: isMax ? 100 : Math.round((completionsInLevel / EXERCISE_LEVEL_STEP) * 100),
+      isMax: isMax,
+      trialUnlocked: !isMax && !!p.trialUnlocked,
+      needsConsolidation: !isMax && !!p.needsConsolidation
+    };
+  }
+  function getEffectiveDuration(ex) {
+    if (!ex || !ex.duration) return ex ? ex.duration : 0;
+    const lvl = getExerciseLevel(ex.id);
+    const mult = EXERCISE_LEVEL_MULT[lvl.level - 1];
+    return Math.max(ex.duration, Math.round((ex.duration * mult) / 5) * 5);
+  }
+  function getTrialDuration(ex) {
+    const effDur = getEffectiveDuration(ex);
+    return Math.max(TRIAL_MIN_SECONDS, effDur + 15);
+  }
+  function getSuggestedManualMinutes(ex) {
+    const lvl = getExerciseLevel(ex.id);
+    const mult = EXERCISE_LEVEL_MULT[lvl.level - 1];
+    return Math.round((30 * mult) / 5) * 5;
+  }
+  // Usado por ejercicios isometricos (con temporizador). Suma repeticiones normales hasta
+  // 4/4 y ahi desbloquea El Reto de Tiempo, sin ascender de nivel todavia.
+  function registerForgeRepetition(id) {
+    const p = getExerciseProgressData(id);
+    const lvl = getExerciseLevel(id);
+    if (lvl.isMax) {
+      return { trialUnlocked: false, consolidated: false, level: p.level, title: EXERCISE_LEVEL_TITLES[p.level - 1] };
+    }
+    if (p.needsConsolidation) {
+      // Esta repeticion actua como la sesion de consolidacion exigida tras un fallo.
+      p.needsConsolidation = false;
+      p.trialUnlocked = true;
+      localStorage.setItem('lovecraft_exercise_progress', JSON.stringify(exerciseProgress));
+      return { trialUnlocked: true, consolidated: true, level: p.level, title: EXERCISE_LEVEL_TITLES[p.level - 1] };
+    }
+    if (p.trialUnlocked) {
+      // La barra ya esta en 4/4 esperando El Reto de Tiempo; una repeticion normal no suma mas.
+      return { trialUnlocked: true, consolidated: false, level: p.level, title: EXERCISE_LEVEL_TITLES[p.level - 1] };
+    }
+    p.completionsInLevel = Math.min(EXERCISE_LEVEL_STEP, (p.completionsInLevel || 0) + 1);
+    if (p.completionsInLevel >= EXERCISE_LEVEL_STEP) p.trialUnlocked = true;
+    localStorage.setItem('lovecraft_exercise_progress', JSON.stringify(exerciseProgress));
+    return { trialUnlocked: p.trialUnlocked, consolidated: false, level: p.level, title: EXERCISE_LEVEL_TITLES[p.level - 1] };
+  }
+  // La Confirmacion del Templario/Acolito: registra el resultado de El Reto de Tiempo.
+  function registerTrialResult(id, success) {
+    const p = getExerciseProgressData(id);
+    if (success) {
+      p.level = Math.min(EXERCISE_MAX_LEVEL, p.level + 1);
+      p.completionsInLevel = 0;
+      p.trialUnlocked = false;
+      p.needsConsolidation = false;
+    } else {
+      p.completionsInLevel = EXERCISE_LEVEL_STEP - 1;
+      p.trialUnlocked = false;
+      p.needsConsolidation = true;
+    }
+    localStorage.setItem('lovecraft_exercise_progress', JSON.stringify(exerciseProgress));
+    return { level: p.level, title: EXERCISE_LEVEL_TITLES[p.level - 1] };
+  }
+  // Usado unicamente por el Trote (tipo manual): conserva el ascenso automatico clasico,
+  // ya que no es un ejercicio de sosten isometrico y no aplica El Reto de Tiempo.
+  function registerExerciseCompletion(id) {
+    const p = getExerciseProgressData(id);
+    const prevLevel = p.level;
+    if (p.level < EXERCISE_MAX_LEVEL) {
+      p.completionsInLevel = (p.completionsInLevel || 0) + 1;
+      if (p.completionsInLevel >= EXERCISE_LEVEL_STEP) {
+        p.level = Math.min(EXERCISE_MAX_LEVEL, p.level + 1);
+        p.completionsInLevel = 0;
+      }
+      p.trialUnlocked = false;
+      p.needsConsolidation = false;
+    }
+    localStorage.setItem('lovecraft_exercise_progress', JSON.stringify(exerciseProgress));
+    return { leveledUp: p.level > prevLevel, level: p.level, title: EXERCISE_LEVEL_TITLES[p.level - 1] };
+  }
+  function renderExerciseLevelInfo(ex, extraStyle) {
+    const lvl = getExerciseLevel(ex.id);
+    const rightLabel = lvl.isMax ? 'Nivel maximo' : (lvl.completionsInLevel + '/' + lvl.neededForNext + ' para ascender');
+    return '<div' + (extraStyle ? ' style="' + extraStyle + '"' : '') + '>' +
+      '<div class="exercise-level-info"><span>Nivel ' + lvl.level + ' \u2014 ' + lvl.title + '</span><span>' + rightLabel + '</span></div>' +
+      '<div class="exercise-level-bar"><div class="exercise-level-fill" style="width:' + lvl.progressPct + '%;"></div></div>' +
+      '</div>';
+  }
 
   // ===== ESTUDIO / POMODORO =====
   let pomodoroTime = 25 * 60;
@@ -2440,11 +2690,14 @@
     const doneIds = todayActivity.exerciseIds || [];
     list.innerHTML = exercises.map(function(ex) {
       const isDone = doneIds.includes(ex.id);
-      const checkMark = isDone ? '<span style="color:#8b7355;margin-left:auto;font-size:14px;">✓</span>' : '';
+      const checkMark = isDone ? '<span style="color:#8b7355;margin-left:8px;font-size:14px;">✓</span>' : '';
       const opacity = isDone ? 'opacity:0.6;' : '';
+      const lvl = getExerciseLevel(ex.id);
+      const levelBadge = '<span class="exercise-level-badge">Nv.' + lvl.level + '</span>';
       return '<div class="exercise-card" id="ex-card-' + ex.id + '" onclick="selectExercise(\'' + ex.id + '\')" style="' + opacity + '">' +
-        '<div class="exercise-name">' + ex.icon + ' ' + ex.name + '<span class="difficulty-tag">' + ex.difficulty + '</span>' + checkMark + '</div>' +
+        '<div class="exercise-name">' + ex.icon + ' ' + ex.name + '<span class="difficulty-tag">' + ex.difficulty + '</span>' + levelBadge + checkMark + '</div>' +
         '<p class="exercise-desc">' + ex.desc + '</p>' +
+        '<div class="exercise-level-bar"><div class="exercise-level-fill" style="width:' + lvl.progressPct + '%;"></div></div>' +
       '</div>';
     }).join('');
   }
@@ -2471,35 +2724,65 @@
     var detail = document.getElementById('exerciseDetail');
 
     if (isManual) {
+      const suggestedMin = getSuggestedManualMinutes(activeExercise);
       detail.innerHTML = '<div class="exercise-name" style="font-size:16px;margin-bottom:8px;">' + 
         activeExercise.name + ' <span class="difficulty-tag">' + activeExercise.difficulty + '</span></div>' +
         '<p style="font-size:12px;color:#5a4a3a;margin-bottom:12px;">' + activeExercise.desc + '</p>' +
+        renderExerciseLevelInfo(activeExercise, 'margin-bottom:12px;') +
         '<div style="margin:16px 0;text-align:center;">' +
         '<label style="display:block;font-family:Cinzel,serif;font-size:11px;color:#5a4a3a;margin-bottom:8px;letter-spacing:1px;">TIEMPO REALIZADO (minutos)</label>' +
-        '<input type="number" id="manualExerciseTime" min="1" max="300" value="30" ' +
+        '<input type="number" id="manualExerciseTime" min="1" max="300" value="' + suggestedMin + '" ' +
         'style="background:#0a0a0f;border:1px solid #5a4a3a;color:#8b7355;font-family:Cinzel,serif;font-size:28px;text-align:center;width:120px;padding:8px;border-radius:4px;letter-spacing:2px;">' +
-        '<p style="font-size:11px;color:#3a2a1a;margin-top:8px;">Ingresa cuántos minutos trotaste</p>' +
+        '<p style="font-size:11px;color:#3a2a1a;margin-top:8px;">Meta sugerida segun tu nivel: ' + suggestedMin + ' min</p>' +
         '</div>' +
         '<div class="timer-controls">' +
         '<button class="btn-primary" onclick="logManualExercise()">' +
         '<span>⚡</span> Registrar Trote</button></div>' +
+        '<div class="exercise-levelup-msg" id="exerciseLevelupMsg"></div>' +
         '<ol class="exercise-steps">' + activeExercise.steps.map(function(s) { return '<li>' + s + '</li>'; }).join('') + '</ol>';
       exerciseTimeLeft = 0;
       exerciseRunning = false;
       clearInterval(exerciseInterval);
     } else {
+      const lvl = getExerciseLevel(activeExercise.id);
+      exerciseTrialMode = !lvl.isMax && lvl.trialUnlocked;
+      const effDuration = exerciseTrialMode ? getTrialDuration(activeExercise) : getEffectiveDuration(activeExercise);
+
+      let trialSection = '';
+      let startLabel = '<span>⚡</span> Iniciar';
+      let startBtnClass = 'btn-primary';
+      if (!lvl.isMax) {
+        if (lvl.needsConsolidation) {
+          trialSection = '<div class="trial-callout consolidation">' +
+            '<strong>🜏 Sesion de Consolidacion Requerida</strong>' +
+            '<p>La forma se quebro en El Reto de Tiempo. Completa esta sesion de consolidacion para volver a desbloquear el reto.</p>' +
+            '</div>';
+        } else if (exerciseTrialMode) {
+          trialSection = '<div class="trial-callout ready">' +
+            '<strong>⏳ El Reto de Tiempo</strong>' +
+            '<p>Una sola serie con temporizador extendido (' + formatTime(effDuration) + '). Superala para ascender oficialmente al Nivel ' + (lvl.level + 1) + ' — ' + EXERCISE_LEVEL_TITLES[lvl.level] + '.</p>' +
+            '</div>';
+          startLabel = '<span>⏳</span> Iniciar el Reto de Tiempo';
+          startBtnClass = 'btn-primary btn-trial';
+        }
+      }
+
       detail.innerHTML = '<div class="exercise-name" style="font-size:16px;margin-bottom:8px;">' + 
         activeExercise.name + ' <span class="difficulty-tag">' + activeExercise.difficulty + '</span></div>' +
         '<p style="font-size:12px;color:#5a4a3a;margin-bottom:12px;">' + activeExercise.desc + '</p>' +
-        '<div class="exercise-timer-display" id="exerciseTimerDisplay">' + formatTime(activeExercise.duration) + '</div>' +
+        renderExerciseLevelInfo(activeExercise, 'margin-bottom:12px;') +
+        trialSection +
+        '<div class="exercise-timer-display" id="exerciseTimerDisplay">' + formatTime(effDuration) + '</div>' +
         '<div class="exercise-timer-bar"><div class="exercise-timer-fill" id="exerciseTimerFill"></div></div>' +
         '<div class="timer-controls">' +
-        '<button class="btn-primary" id="exerciseStartBtn" onclick="toggleExerciseTimer()">' +
-        '<span>⚡</span> Iniciar</button>' +
+        '<button class="' + startBtnClass + '" id="exerciseStartBtn" onclick="toggleExerciseTimer()">' +
+        startLabel + '</button>' +
         '<button class="btn-secondary" onclick="resetExerciseTimer()" id="exerciseResetBtn" style="display:none;">' +
         '<span>↺</span> Reiniciar</button></div>' +
+        '<div class="exercise-levelup-msg" id="exerciseLevelupMsg"></div>' +
+        '<div id="trialConfirmArea"></div>' +
         '<ol class="exercise-steps">' + activeExercise.steps.map(function(s) { return '<li>' + s + '</li>'; }).join('') + '</ol>';
-      exerciseTimeLeft = activeExercise.duration;
+      exerciseTimeLeft = effDuration;
       exerciseRunning = false;
       clearInterval(exerciseInterval);
     }
@@ -2515,14 +2798,13 @@
   function startExerciseTimer() {
     if (!activeExercise) return;
     if (exerciseTimeLeft <= 0) {
-      let dur = activeExercise.duration;
+      let dur = exerciseTrialMode ? getTrialDuration(activeExercise) : getEffectiveDuration(activeExercise);
       const moon = getMoonModifier();
       if (moon === 2) dur += 5;
       exerciseTimeLeft = dur;
     }
     exerciseRunning = true;
-    document.getElementById('exerciseStartBtn').textContent = 'Pausar Prueba';
-    const total = activeExercise.duration;
+    document.getElementById('exerciseStartBtn').textContent = exerciseTrialMode ? 'Pausar el Reto' : 'Pausar Prueba';
     clearInterval(exerciseInterval);
     exerciseInterval = setInterval(function() {
       exerciseTimeLeft--;
@@ -2531,8 +2813,6 @@
       if (exerciseTimeLeft <= 0) {
         clearInterval(exerciseInterval);
         exerciseRunning = false;
-        document.getElementById('exerciseStartBtn').textContent = 'Prueba Superada';
-        document.getElementById('exerciseStartBtn').disabled = true;
         let recovery = 3;
         const moon = getMoonModifier();
         if (moon === 4) recovery = 6;
@@ -2547,19 +2827,36 @@
         didExerciseBeforeStudy = true;
         recordRitual();
         checkPactProgress();
+        if (exerciseTrialMode) {
+          finishTrialTimer();
+        } else {
+          const levelResult = registerForgeRepetition(activeExercise.id);
+          document.getElementById('exerciseStartBtn').textContent = levelResult.trialUnlocked ? 'Reto de Tiempo Desbloqueado' : 'Prueba Superada';
+          document.getElementById('exerciseStartBtn').disabled = true;
+          const levelupEl = document.getElementById('exerciseLevelupMsg');
+          if (levelupEl) {
+            if (levelResult.consolidated) {
+              levelupEl.textContent = '🜏 Sesion de consolidacion completada. El Reto de Tiempo esta listo de nuevo.';
+            } else if (levelResult.trialUnlocked) {
+              levelupEl.textContent = '⏳ 4/4 alcanzado. El Reto de Tiempo se ha desbloqueado — vuelve a abrir este ejercicio cuando estes listo para enfrentarlo.';
+            } else {
+              levelupEl.textContent = '';
+            }
+          }
+        }
       }
     }, 1000);
   }
   function pauseExerciseTimer() {
     exerciseRunning = false;
     clearInterval(exerciseInterval);
-    document.getElementById('exerciseStartBtn').textContent = 'Reanudar Prueba';
+    document.getElementById('exerciseStartBtn').textContent = exerciseTrialMode ? 'Reanudar el Reto' : 'Reanudar Prueba';
   }
   function resetExerciseTimer() {
     exerciseRunning = false;
     clearInterval(exerciseInterval);
     if (activeExercise) {
-      let dur = activeExercise.duration;
+      let dur = exerciseTrialMode ? getTrialDuration(activeExercise) : getEffectiveDuration(activeExercise);
       const moon = getMoonModifier();
       if (moon === 2) dur += 5;
       exerciseTimeLeft = dur;
@@ -2567,8 +2864,48 @@
       exerciseTimeLeft = 0;
     }
     updateExerciseDisplay();
-    document.getElementById('exerciseStartBtn').textContent = 'Iniciar Prueba';
+    document.getElementById('exerciseStartBtn').textContent = exerciseTrialMode ? '⏳ Iniciar el Reto de Tiempo' : 'Iniciar Prueba';
     document.getElementById('exerciseStartBtn').disabled = false;
+    const levelupEl = document.getElementById('exerciseLevelupMsg');
+    if (levelupEl) levelupEl.textContent = '';
+    const trialConfirmEl = document.getElementById('trialConfirmArea');
+    if (trialConfirmEl) trialConfirmEl.innerHTML = '';
+  }
+
+  // ===== EL RETO DE TIEMPO =====
+  // Al terminar el temporizador extendido, se despliega la Confirmacion del Templario/Acolito
+  // en vez de ascender de nivel automaticamente.
+  function finishTrialTimer() {
+    const startBtn = document.getElementById('exerciseStartBtn');
+    if (startBtn) {
+      startBtn.textContent = 'Reto de Tiempo Completado';
+      startBtn.disabled = true;
+    }
+    const levelupEl = document.getElementById('exerciseLevelupMsg');
+    if (levelupEl) levelupEl.textContent = '';
+    const trialConfirmEl = document.getElementById('trialConfirmArea');
+    if (trialConfirmEl) {
+      trialConfirmEl.innerHTML = '<div class="trial-confirm">' +
+        '<p>¿Completaste el sostén sin perder la forma y sin dolor articular?</p>' +
+        '<div class="trial-confirm-btns">' +
+        '<button class="trial-btn-yes" onclick="confirmTrialResult(true)">Sí</button>' +
+        '<button class="trial-btn-no" onclick="confirmTrialResult(false)">No</button>' +
+        '</div></div>';
+    }
+  }
+  function confirmTrialResult(success) {
+    if (!activeExercise) return;
+    const result = registerTrialResult(activeExercise.id, success);
+    exerciseTrialMode = false;
+    const trialConfirmEl = document.getElementById('trialConfirmArea');
+    if (trialConfirmEl) trialConfirmEl.innerHTML = '';
+    const levelupEl = document.getElementById('exerciseLevelupMsg');
+    if (levelupEl) {
+      levelupEl.textContent = success ?
+        ('⚡ Ascendiste oficialmente a Nivel ' + result.level + ' — ' + result.title + '. La proxima prueba sera mas larga.') :
+        ('💢 La forma se quebro. La barra retrocede a 3/' + EXERCISE_LEVEL_STEP + '. Completa una sesion de consolidacion para reintentar El Reto de Tiempo.');
+    }
+    renderExercises();
   }
 
   function logManualExercise() {
@@ -2597,12 +2934,16 @@
     didExerciseBeforeStudy = true;
     recordRitual();
     checkPactProgress();
+    var levelResult = registerExerciseCompletion(activeExercise.id);
+    var levelupLine = levelResult.leveledUp ?
+      '<div style="color:#cd853f;font-size:11px;margin-top:8px;font-family:Cinzel,serif;letter-spacing:1px;">⚡ Ascendiste a Nivel ' + levelResult.level + ' — ' + levelResult.title + '</div>' : '';
     var detail = document.getElementById('exerciseDetail');
     detail.innerHTML = '<div style="text-align:center;padding:20px;">' +
       '<div style="font-size:32px;margin-bottom:8px;">✓</div>' +
       '<div style="font-family:Cinzel,serif;color:#8b7355;font-size:14px;letter-spacing:1px;">TROTE REGISTRADO</div>' +
       '<div style="color:#5a4a3a;font-size:12px;margin-top:4px;">' + minutes + ' minutos de esfuerzo</div>' +
-      '<div style="color:#3a2a1a;font-size:11px;margin-top:8px;">Cordura +' + sanityGain + '</div></div>';
+      '<div style="color:#3a2a1a;font-size:11px;margin-top:8px;">Cordura +' + sanityGain + '</div>' +
+      levelupLine + '</div>';
     renderExercises();
   }
   function updateExerciseDisplay() {
@@ -2612,7 +2953,8 @@
     const displayEl = document.getElementById('exerciseTimerDisplay');
     if (displayEl) displayEl.textContent = m + ':' + s;
     if (activeExercise && activeExercise.duration > 0) {
-      const pct = Math.max(0, Math.min(100, (safeTime / activeExercise.duration) * 100));
+      const effDur = getEffectiveDuration(activeExercise);
+      const pct = Math.max(0, Math.min(100, (safeTime / effDur) * 100));
       const fillEl = document.getElementById('exerciseTimerFill');
       if (fillEl) fillEl.style.width = pct + '%';
     }
@@ -3090,7 +3432,8 @@ function detectPlatform() {
       pacts: pacts,
       seals: seals,
       levelData: levelData,
-      studyStats: studyStats
+      studyStats: studyStats,
+      exerciseProgress: exerciseProgress
     };
   }
 
@@ -3206,6 +3549,7 @@ function detectPlatform() {
       if (data.seals) { seals = data.seals; localStorage.setItem('lovecraft_seals', JSON.stringify(seals)); }
       if (data.levelData) { levelData = data.levelData; localStorage.setItem('lovecraft_level', JSON.stringify(levelData)); }
       if (data.studyStats) { studyStats = data.studyStats; localStorage.setItem('lovecraft_study_stats', JSON.stringify(studyStats)); }
+      if (data.exerciseProgress) { exerciseProgress = data.exerciseProgress; localStorage.setItem('lovecraft_exercise_progress', JSON.stringify(exerciseProgress)); }
 
       // Recargar UI
       updateSanity();
@@ -3216,6 +3560,7 @@ function detectPlatform() {
       renderCalendar();
       renderSanityChart();
       renderPact();
+      renderExercises();
 
       document.getElementById('syncCodeInput').value = '';
       showSyncMsg('syncImportMsg', 'Alma restaurada. Tu grimorio ahora es uno solo.');
