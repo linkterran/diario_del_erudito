@@ -803,6 +803,24 @@
   .timer-controls button {
     flex: 1;
   }
+  .exercise-interval-phase {
+    text-align: center;
+    font-family: 'Cinzel', serif;
+    font-size: 13px;
+    letter-spacing: 3px;
+    margin-bottom: 4px;
+    transition: color 0.3s ease;
+  }
+  .exercise-interval-phase.phase-work { color: #cd853f; }
+  .exercise-interval-phase.phase-rest { color: #6a8a8f; }
+  .exercise-interval-round {
+    text-align: center;
+    font-family: 'Cinzel', serif;
+    font-size: 11px;
+    color: #8a7560;
+    letter-spacing: 1px;
+    margin-bottom: 12px;
+  }
   .exercise-detail {
     margin-top: 16px;
     padding-top: 16px;
@@ -1133,12 +1151,27 @@
     background: rgba(0,0,0,0.2);
     color: #8a7560;
     transition: all 0.3s;
+    cursor: pointer;
+  }
+  .seal-item svg {
+    width: 22px;
+    height: 22px;
+    stroke: currentColor;
+    fill: none;
+    vector-effect: non-scaling-stroke;
+  }
+  .seal-item:hover {
+    border-color: #8b7355;
+    transform: translateY(-2px);
   }
   .seal-item.earned {
     border-color: #8b7355;
     color: #c9b8a0;
     background: rgba(139,115,85,0.1);
     box-shadow: 0 0 10px rgba(139,115,85,0.1);
+  }
+  .seal-item.earned:hover {
+    box-shadow: 0 0 14px rgba(139,115,85,0.3);
   }
 
   /* === MODO INMERSIVO === */
@@ -1705,6 +1738,21 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="sealModalOverlay" onclick="closeSealModal(event)">
+  <div class="modal-content" onclick="event.stopPropagation()">
+    <button class="modal-close" onclick="closeSealModal()">&times;</button>
+    <h2 class="modal-title" id="sealModalTitle"></h2>
+    <div class="modal-meta">
+      <span id="sealModalPact"></span>
+      <span id="sealModalDate"></span>
+    </div>
+    <div class="modal-body" id="sealModalBody"></div>
+    <div class="modal-actions">
+      <button class="modal-btn" onclick="closeSealModal()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
 <script>
 
   // ===== ESTADO GLOBAL =====
@@ -1727,7 +1775,7 @@
   let currentGain = null;
   let audioType = null;
 
-  const moodIcons = { calm: '😌', uneasy: '😟', dread: '😨', madness: '🤯' };
+  const moodIcons = { calm: '🕯️', uneasy: '👁️', dread: '🌑', madness: '🐙' };
   const moodNames = { calm: 'Calma', uneasy: 'Inquietud', dread: 'Horror', madness: 'Locura' };
   const sanityWhispers = ['Te observan...','No mires atras','El sueno es una puerta','Ph\'nglui mglw\'nafh','Los numeros mienten','El suena en R\'lyeh','La verdad duele','No hay escape'];
 
@@ -1775,7 +1823,41 @@
     { id: 'pact8', name: 'El Pacto del Vacio', desc: 'Meditar 15 minutos + escribir 1 entrada en estado de Locura', reqs: { meditateMins: 15, writeMadness: 1 }, reward: 25 }
   ];
 
-  const sealIcons = ['\u2726','\u26A1','\uD83D\uDC41\uFE0F','\uD83C\uDF19','\uD83D\uDD12','\u262F\uFE0F','\u2694\uFE0F','\uD83D\uDCDC','\uD83D\uDC7B','\u2B50'];
+  function sealSvg(paths) {
+    return '<svg viewBox="0 0 24 24" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' + paths + '</svg>';
+  }
+  const sealDefs = [
+    { id: 'vacio', name: 'Sello del Vacio',
+      icon: sealSvg('<path d="M12 3l2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5Z"/>'),
+      desc: 'El Vacio que precede a toda forma. Representa la nada fertil de la que emergio tu primera voluntad de cumplir el pacto.' },
+    { id: 'relampago', name: 'Sello del Relampago',
+      icon: sealSvg('<path d="M13 2 3 14h7l-1 8 10-12h-7l1-8Z"/>'),
+      desc: 'La revelacion subita. El instante en que el velo se rasga y la disciplina ilumina un camino antes oculto.' },
+    { id: 'ojo', name: 'Sello del Ojo Insomne',
+      icon: sealSvg('<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/><circle cx="12" cy="12" r="3"/>'),
+      desc: 'El Ojo Insomne que vigila los umbrales. Recuerda que ningun dia de constancia pasa sin ser visto.' },
+    { id: 'luna', name: 'Sello de la Luna Negra',
+      icon: sealSvg('<path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5Z"/>'),
+      desc: 'La Luna Negra, cara oculta que nunca se muestra. Simboliza el esfuerzo silencioso que nadie mas presencia.' },
+    { id: 'candado', name: 'Sello del Candado',
+      icon: sealSvg('<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'),
+      desc: 'Lo que se sella no puede deshacerse. Cada pacto cumplido queda cerrado para siempre en tu historial.' },
+    { id: 'equilibrio', name: 'Sello del Equilibrio',
+      icon: sealSvg('<circle cx="12" cy="12" r="9"/><path d="M12 3a4.5 4.5 0 0 1 0 9 4.5 4.5 0 0 0 0 9"/><circle cx="12" cy="7.5" r="0.7" fill="currentColor" stroke="none"/><circle cx="12" cy="16.5" r="0.7" fill="currentColor" stroke="none"/>'),
+      desc: 'La armonia entre cuerpo, mente y voluntad. Ninguna practica domina sobre las demas; todas convergen en ti.' },
+    { id: 'espadas', name: 'Sello de las Espadas Cruzadas',
+      icon: sealSvg('<path d="M5 5l14 14"/><path d="M19 5 5 19"/><path d="M5 5l3 .6M19 5l-3 .6M5 19l3-.6M19 19l-3-.6"/>'),
+      desc: 'El conflicto necesario. Cada pacto exige enfrentar la resistencia propia y salir vencedor de ella.' },
+    { id: 'pergamino', name: 'Sello del Pergamino',
+      icon: sealSvg('<path d="M6 3c-1 0-2 .8-2 2v14c0 1.2 1 2 2 2h10c1 0 2-.8 2-2V8l-5-5H6Z"/><path d="M13 3v5h5"/><path d="M8 13h6"/><path d="M8 17h6"/>'),
+      desc: 'El conocimiento registrado. Cada pacto cumplido añade una linea a un texto que nunca termina de escribirse.' },
+    { id: 'espectro', name: 'Sello del Espectro',
+      icon: sealSvg('<path d="M12 3a7 7 0 0 0-7 7v11l3-2 2 2 2-2 2 2 2-2 3 2V10a7 7 0 0 0-7-7Z"/><circle cx="9.3" cy="10" r="0.9" fill="currentColor" stroke="none"/><circle cx="14.7" cy="10" r="0.9" fill="currentColor" stroke="none"/>'),
+      desc: 'Lo que persiste tras el silencio. Un recordatorio de que la disciplina, una vez despertada, no se olvida facilmente.' },
+    { id: 'estrella', name: 'Sello de la Estrella Ancestral',
+      icon: sealSvg('<path d="M12 2 14.6 9.1 22 9.6 16.3 14.3 18.2 21.5 12 17.4 5.8 21.5 7.7 14.3 2 9.6 9.4 9.1Z"/>'),
+      desc: 'Los astros ancestrales que guiaron a quienes vinieron antes. Marca el camino de una constancia sostenida en el tiempo.' }
+  ];
 
   // ===== MEDITACION =====
   let meditationDuration = 5;
@@ -1896,6 +1978,9 @@
       difficulty: 'Iniciado',
       desc: 'Aprieta el puno con maxima fuerza durante 10 segundos. Descansa 5. Repite.',
       duration: 120,
+      type: 'interval',
+      work: 10,
+      rest: 5,
       steps: [
         'Cierra ambos punos con toda tu fuerza. Imagina que retienes un secreto antiguo.',
         'Manten el agarre durante 10 segundos. Siente los tendones tensarse.',
@@ -2069,15 +2154,18 @@
       name: 'El Grillete Eterno',
       icon: '🗜️',
       difficulty: 'Acólito',
-      desc: 'Overcoming isometric con grip trainer (hand gripper). Ciérralo con toda tu fuerza y mantenlo sellado el mayor tiempo posible. El temporizador marca la meta minima: si tus manos aun tienen fuerza cuando termine, sigue apretando.',
+      desc: 'Overcoming isometric con grip trainer (hand gripper) por intervalos. Cierra con fuerza maxima durante la fase de trabajo y afloja el agarre en el descanso, sin soltar el mango. Alterna hasta completar todas las rondas.',
       duration: 45,
+      type: 'interval',
+      work: 10,
+      rest: 5,
       steps: [
         'Sujeta el grip trainer con una mano, dedos envolviendo el mango, palma firme contra el resorte.',
-        'Cierra el gripper con toda tu fuerza hasta juntar ambos mangos por completo.',
-        'Manten el agarre sellado sin dejar que el resorte se abra ni un milimetro.',
+        'Cuando comience la fase de TRABAJO, cierra el gripper con toda tu fuerza hasta juntar ambos mangos por completo.',
+        'Manten el agarre sellado durante toda la fase de trabajo, sin dejar que el resorte se abra ni un milimetro.',
+        'Cuando llegue el DESCANSO, afloja la presion sin soltar el mango. Sacude la mano si lo necesitas.',
         'Respira de forma controlada. La tension vive en los antebrazos, no en la mandibula.',
-        'Cuando el temporizador termine, si aun puedes sostenerlo, continua hasta el fallo total.',
-        'Cambia de mano a la mitad del ritual. El equilibrio entre ambos brazos es la verdadera prueba.'
+        'Alterna trabajo y descanso hasta completar todas las rondas. Cambia de mano a la mitad del ritual: el equilibrio entre ambos brazos es la verdadera prueba.'
       ]
     },
 
@@ -2102,6 +2190,9 @@
   let exerciseInterval = null;
   let exerciseRunning = false;
   let todayExercises = [];
+  let intervalPhase = 'work';
+  let intervalRound = 1;
+  let intervalPhaseTimeLeft = 0;
 
   // ===== PROGRESION DE LA FORJA =====
   // Cada ejercicio guarda su propio conteo de pruebas superadas. Cada EXERCISE_LEVEL_STEP
@@ -2138,6 +2229,14 @@
     const lvl = getExerciseLevel(ex.id);
     const mult = EXERCISE_LEVEL_MULT[lvl.level - 1];
     return Math.max(ex.duration, Math.round((ex.duration * mult) / 5) * 5);
+  }
+  function getIntervalPlan(ex) {
+    const effDur = getEffectiveDuration(ex);
+    const work = ex.work || 10;
+    const rest = ex.rest || 5;
+    const cycle = work + rest;
+    const rounds = Math.max(1, Math.round(effDur / cycle));
+    return { work: work, rest: rest, cycle: cycle, rounds: rounds };
   }
   function getSuggestedManualMinutes(ex) {
     const lvl = getExerciseLevel(ex.id);
@@ -2848,9 +2947,32 @@
     if (cards[idx]) cards[idx].classList.add('active');
 
     var isManual = activeExercise.type === 'manual';
+    var isInterval = activeExercise.type === 'interval';
     var detail = document.getElementById('exerciseDetail');
 
-    if (isManual) {
+    if (isInterval) {
+      const plan = getIntervalPlan(activeExercise);
+      detail.innerHTML = '<div class="exercise-name" style="font-size:16px;margin-bottom:8px;">' +
+        activeExercise.name + ' <span class="difficulty-tag">' + activeExercise.difficulty + '</span></div>' +
+        '<p style="font-size:12px;color:#5a4a3a;margin-bottom:12px;">' + activeExercise.desc + '</p>' +
+        renderExerciseLevelInfo(activeExercise, 'margin-bottom:12px;') +
+        '<div class="exercise-interval-phase phase-work" id="exerciseIntervalPhase">✊ APRIETA</div>' +
+        '<div class="exercise-timer-display" id="exerciseTimerDisplay">' + formatTime(plan.work) + '</div>' +
+        '<div class="exercise-timer-bar"><div class="exercise-timer-fill" id="exerciseTimerFill"></div></div>' +
+        '<div class="exercise-interval-round" id="exerciseIntervalRound">Ronda 1 / ' + plan.rounds + '</div>' +
+        '<div class="timer-controls">' +
+        '<button class="btn-primary" id="exerciseStartBtn" onclick="toggleIntervalTimer()">' +
+        '<span>⚡</span> Iniciar</button>' +
+        '<button class="btn-secondary" onclick="resetIntervalTimer()" id="exerciseResetBtn" style="display:none;">' +
+        '<span>↺</span> Reiniciar</button></div>' +
+        '<div class="exercise-levelup-msg" id="exerciseLevelupMsg"></div>' +
+        '<ol class="exercise-steps">' + activeExercise.steps.map(function(s) { return '<li>' + s + '</li>'; }).join('') + '</ol>';
+      intervalPhase = 'work';
+      intervalRound = 1;
+      intervalPhaseTimeLeft = plan.work;
+      exerciseRunning = false;
+      clearInterval(exerciseInterval);
+    } else if (isManual) {
       const suggestedMin = getSuggestedManualMinutes(activeExercise);
       detail.innerHTML = '<div class="exercise-name" style="font-size:16px;margin-bottom:8px;">' + 
         activeExercise.name + ' <span class="difficulty-tag">' + activeExercise.difficulty + '</span></div>' +
@@ -2961,6 +3083,128 @@
     document.getElementById('exerciseStartBtn').disabled = false;
     const levelupEl = document.getElementById('exerciseLevelupMsg');
     if (levelupEl) levelupEl.textContent = '';
+  }
+
+  // ===== TEMPORIZADOR POR INTERVALOS =====
+  function toggleIntervalTimer() {
+    if (exerciseRunning) {
+      pauseIntervalTimer();
+    } else {
+      startIntervalTimer();
+    }
+  }
+  function startIntervalTimer() {
+    if (!activeExercise) return;
+    const plan = getIntervalPlan(activeExercise);
+    if (intervalPhaseTimeLeft <= 0) {
+      intervalPhaseTimeLeft = intervalPhase === 'work' ? plan.work : plan.rest;
+    }
+    exerciseRunning = true;
+    document.getElementById('exerciseStartBtn').textContent = 'Pausar Prueba';
+    clearInterval(exerciseInterval);
+    exerciseInterval = setInterval(function() {
+      intervalPhaseTimeLeft--;
+      if (intervalPhaseTimeLeft < 0) intervalPhaseTimeLeft = 0;
+      if (intervalPhaseTimeLeft <= 0) {
+        if (intervalPhase === 'work') {
+          if (intervalRound >= plan.rounds) {
+            finishIntervalExercise();
+            return;
+          }
+          intervalPhase = 'rest';
+          intervalPhaseTimeLeft = plan.rest;
+        } else {
+          intervalRound++;
+          if (intervalRound > plan.rounds) {
+            finishIntervalExercise();
+            return;
+          }
+          intervalPhase = 'work';
+          intervalPhaseTimeLeft = plan.work;
+        }
+      }
+      updateIntervalDisplay();
+    }, 1000);
+    updateIntervalDisplay();
+  }
+  function pauseIntervalTimer() {
+    exerciseRunning = false;
+    clearInterval(exerciseInterval);
+    document.getElementById('exerciseStartBtn').textContent = 'Reanudar Prueba';
+  }
+  function resetIntervalTimer() {
+    exerciseRunning = false;
+    clearInterval(exerciseInterval);
+    if (activeExercise) {
+      const plan = getIntervalPlan(activeExercise);
+      intervalPhase = 'work';
+      intervalRound = 1;
+      intervalPhaseTimeLeft = plan.work;
+    } else {
+      intervalPhaseTimeLeft = 0;
+    }
+    updateIntervalDisplay();
+    const btn = document.getElementById('exerciseStartBtn');
+    if (btn) { btn.textContent = 'Iniciar Prueba'; btn.disabled = false; }
+    const levelupEl = document.getElementById('exerciseLevelupMsg');
+    if (levelupEl) levelupEl.textContent = '';
+  }
+  function updateIntervalDisplay() {
+    if (!activeExercise) return;
+    const plan = getIntervalPlan(activeExercise);
+    const safeTime = Math.max(0, intervalPhaseTimeLeft);
+    const displayEl = document.getElementById('exerciseTimerDisplay');
+    if (displayEl) displayEl.textContent = formatTime(safeTime);
+    const phaseEl = document.getElementById('exerciseIntervalPhase');
+    if (phaseEl) {
+      phaseEl.textContent = intervalPhase === 'work' ? '✊ APRIETA' : '✋ DESCANSO';
+      phaseEl.className = 'exercise-interval-phase ' + (intervalPhase === 'work' ? 'phase-work' : 'phase-rest');
+    }
+    const roundEl = document.getElementById('exerciseIntervalRound');
+    if (roundEl) roundEl.textContent = 'Ronda ' + Math.min(intervalRound, plan.rounds) + ' / ' + plan.rounds;
+    const fillEl = document.getElementById('exerciseTimerFill');
+    if (fillEl) {
+      const phaseDur = intervalPhase === 'work' ? plan.work : plan.rest;
+      const pct = phaseDur > 0 ? Math.max(0, Math.min(100, (safeTime / phaseDur) * 100)) : 0;
+      fillEl.style.width = pct + '%';
+    }
+  }
+  function finishIntervalExercise() {
+    clearInterval(exerciseInterval);
+    exerciseRunning = false;
+    let recovery = 3;
+    const moon = getMoonModifier();
+    if (moon === 4) recovery = 6;
+    sanity = Math.min(100, sanity + recovery);
+    localStorage.setItem('lovecraft_sanity', sanity);
+    updateSanity();
+    todayActivity.exercise = true;
+    todayActivity.exercisesDone = (todayActivity.exercisesDone || 0) + 1;
+    todayActivity.exerciseIds = todayActivity.exerciseIds || [];
+    todayActivity.exerciseIds.push(activeExercise.id);
+    localStorage.setItem('lovecraft_today_activity', JSON.stringify(todayActivity));
+    didExerciseBeforeStudy = true;
+    recordRitual();
+    checkPactProgress();
+    const levelResult = registerExerciseCompletion(activeExercise.id);
+    const btn = document.getElementById('exerciseStartBtn');
+    if (btn) {
+      btn.textContent = levelResult.leveledUp ? '¡Nivel superado!' : 'Prueba Superada';
+      btn.disabled = true;
+    }
+    const phaseEl = document.getElementById('exerciseIntervalPhase');
+    if (phaseEl) phaseEl.textContent = 'COMPLETO';
+    const roundEl = document.getElementById('exerciseIntervalRound');
+    if (roundEl) {
+      const plan = getIntervalPlan(activeExercise);
+      roundEl.textContent = 'Ronda ' + plan.rounds + ' / ' + plan.rounds;
+    }
+    const fillEl = document.getElementById('exerciseTimerFill');
+    if (fillEl) fillEl.style.width = '100%';
+    const levelupEl = document.getElementById('exerciseLevelupMsg');
+    if (levelupEl && levelResult.leveledUp) {
+      levelupEl.textContent = '⚡ Ascendiste a Nivel ' + levelResult.level + ' — ' + levelResult.title + '. La proxima prueba sera mas larga.';
+    }
   }
 
   function logManualExercise() {
@@ -3275,8 +3519,8 @@
     sanity = Math.min(100, sanity + pacts.current.reward);
     localStorage.setItem('lovecraft_sanity', sanity);
     updateSanity();
-    const seal = sealIcons[Math.floor(Math.random() * sealIcons.length)];
-    seals.push({ icon: seal, date: pacts.lastDate, pact: pacts.current.name });
+    const sealDef = sealDefs[Math.floor(Math.random() * sealDefs.length)];
+    seals.push({ id: sealDef.id, date: pacts.lastDate, pact: pacts.current.name });
     localStorage.setItem('lovecraft_seals', JSON.stringify(seals));
     renderPact();
     renderSeals();
@@ -3287,9 +3531,27 @@
       grid.innerHTML = '<div style="font-size:12px;color:#5a4a3a;font-style:italic;">Aun no has sellado ningun pacto...</div>';
       return;
     }
-    grid.innerHTML = seals.map(function(s) {
-      return '<div class="seal-item earned" title="' + s.pact + ' — ' + s.date + '">' + s.icon + '</div>';
+    grid.innerHTML = seals.map(function(s, i) {
+      const def = sealDefs.find(function(d) { return d.id === s.id; });
+      const iconHtml = def ? def.icon : (s.icon || '\u2726');
+      const title = def ? def.name : 'Sello Arcano';
+      return '<div class="seal-item earned" title="' + title + ' — ' + s.pact + ' — ' + s.date + '" onclick="openSealModal(' + i + ')">' + iconHtml + '</div>';
     }).join('');
+  }
+  function openSealModal(index) {
+    const s = seals[index];
+    if (!s) return;
+    const def = sealDefs.find(function(d) { return d.id === s.id; });
+    document.getElementById('sealModalTitle').textContent = def ? def.name : 'Sello Arcano';
+    document.getElementById('sealModalPact').textContent = s.pact;
+    document.getElementById('sealModalDate').textContent = s.date;
+    document.getElementById('sealModalBody').textContent = def ? def.desc : 'Un sello ancestral concedido por un pacto cumplido en tiempos ya olvidados por el registro.';
+    document.getElementById('sealModalOverlay').classList.add('active');
+  }
+  function closeSealModal(event) {
+    if (!event || event.target.id === 'sealModalOverlay') {
+      document.getElementById('sealModalOverlay').classList.remove('active');
+    }
   }
 
   // ===== CALENDARIO =====
