@@ -1257,6 +1257,124 @@
     letter-spacing: 2px;
   }
 
+  /* === MODO PERGAMINO === */
+  .entries-group-pergamino-btn {
+    flex-shrink: 0;
+    width: 26px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(139,115,85,0.1);
+    border: 1px solid #5a4a3a;
+    border-radius: 50%;
+    color: #cd853f;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+  .entries-group-pergamino-btn:hover {
+    border-color: #cd853f;
+    background: rgba(205,133,63,0.18);
+    box-shadow: 0 0 10px rgba(205,133,63,0.35);
+    transform: scale(1.08);
+  }
+  .pergamino-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: #0a0a0f;
+    z-index: 200;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+  }
+  .pergamino-overlay.active { display: flex; }
+  .pergamino-overlay .perg-header {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 20px 52px;
+    text-align: center;
+    font-family: 'Cinzel', serif;
+    font-size: 12px;
+    color: #8a7560;
+    letter-spacing: 3px;
+    border-bottom: 1px solid #3a2a1a;
+    flex-shrink: 0;
+  }
+  .pergamino-overlay .perg-close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 1;
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: #8a7560;
+    font-size: 24px;
+    line-height: 1;
+    cursor: pointer;
+    font-family: 'Cinzel', serif;
+  }
+  .pergamino-overlay .perg-close:hover { color: #c9b8a0; }
+  .pergamino-overlay .perg-content {
+    width: 100%;
+    max-width: 700px;
+    flex: 1;
+    overflow-y: auto;
+    padding: 30px 20px 60px;
+    box-sizing: border-box;
+  }
+  .perg-entry-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Cinzel', serif;
+    font-size: 12px;
+    color: #8b7355;
+    letter-spacing: 1.5px;
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #3a2a1a;
+  }
+  .perg-entry-icon { font-size: 16px; }
+  .perg-entry-title {
+    color: #c9b8a0;
+    font-size: 15px;
+    margin-bottom: 10px;
+    font-family: 'Cinzel', serif;
+    letter-spacing: 0.5px;
+  }
+  .perg-entry-body {
+    color: #c9b8a0;
+    font-family: 'IM Fell English', serif;
+    font-size: 17px;
+    line-height: 1.9;
+    white-space: pre-wrap;
+  }
+  .perg-divider {
+    text-align: center;
+    color: #5a4a3a;
+    margin: 30px 0;
+    font-size: 14px;
+    letter-spacing: 10px;
+  }
+  @media (max-width: 480px) {
+    .pergamino-overlay .perg-header {
+      font-size: 10px;
+      letter-spacing: 1.5px;
+      padding: 14px 46px;
+    }
+    .pergamino-overlay .perg-close {
+      top: 8px;
+      right: 8px;
+    }
+    .pergamino-overlay .perg-content { padding: 24px 16px 50px; }
+  }
+
   .tab-panel { display: none; }
   .tab-panel.active { display: block; }
 
@@ -1445,6 +1563,10 @@
         <button class="duration-btn selected" data-dur="5" onclick="selectMeditationDuration(5)">5 min</button>
         <button class="duration-btn" data-dur="10" onclick="selectMeditationDuration(10)">10 min</button>
         <button class="duration-btn" data-dur="15" onclick="selectMeditationDuration(15)">15 min</button>
+      </div>
+
+      <div class="duration-selector">
+        <button class="duration-btn selected" id="meditationCuesBtn" onclick="toggleMeditationCues()">&#x1F4F3; Guia por vibracion/sonido</button>
       </div>
 
       <div class="meditation-timer" id="meditationTimer">05:00</div>
@@ -1722,6 +1844,13 @@
   <div class="imm-sanity">Cordura: <span id="immSanity">100%</span></div>
 </div>
 
+<!-- MODO PERGAMINO -->
+<div class="pergamino-overlay" id="pergaminoOverlay">
+  <div class="perg-header" id="pergaminoHeader">EL DIARIO DEL ERUDITO — MODO PERGAMINO</div>
+  <button class="perg-close" onclick="closePergamino()">&times;</button>
+  <div class="perg-content" id="pergaminoContent"></div>
+</div>
+
 <div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
   <div class="modal-content" onclick="event.stopPropagation()">
     <button class="modal-close" onclick="closeModal()">&times;</button>
@@ -1864,6 +1993,7 @@
   let meditationTimeLeft = 5 * 60;
   let meditationInterval = null;
   let meditationRunning = false;
+  let meditationCuesEnabled = true;
   let breathInterval = null;
   let todayMeditateMins = 0;
   const meditationPhrases = [
@@ -2651,6 +2781,9 @@
   // Grupos de entradas actualmente expandidos (por defecto: la semana en curso).
   const expandedEntryGroups = new Set(['current']);
   let entryGroupsInitialized = false;
+  // Ultimo mapa de grupos renderizado, para que el Modo Pergamino sepa que
+  // entradas corresponden a cada conjunto (semana/mes) sin recalcularlas.
+  let lastEntryGroupsMap = {};
 
   function startOfWeek(date) {
     const d = new Date(date);
@@ -2728,6 +2861,7 @@
       }
       groupsMap[key].entries.push(entry);
     });
+    lastEntryGroupsMap = groupsMap;
 
     // La primera vez que se renderiza, si no hay entradas de "esta semana", se abre
     // automaticamente el grupo mas reciente para que la lista no aparezca vacia.
@@ -2748,6 +2882,7 @@
           '<span class="entries-group-chevron">' + chevron + '</span>' +
           '<span class="entries-group-label">' + escapeHtml(group.label) + '</span>' +
           '<span class="entries-group-count">' + group.entries.length + '</span>' +
+          '<button class="entries-group-pergamino-btn" title="Modo Pergamino" onclick="event.stopPropagation(); openPergamino(\'' + key + '\')">&#x1F4DC;</button>' +
         '</div>' +
         '<div class="entries-group-body">' + bodyHtml + '</div>' +
       '</div>';
@@ -2804,7 +2939,69 @@
     document.getElementById('immersiveOverlay').classList.remove('active');
   }
 
+  // ===== MODO PERGAMINO =====
+  function openPergamino(groupKey) {
+    const content = document.getElementById('pergaminoContent');
+    const header = document.getElementById('pergaminoHeader');
+    const group = groupKey ? lastEntryGroupsMap[groupKey] : null;
+    const sourceEntries = group ? group.entries : entries;
+    header.textContent = 'EL DIARIO DEL ERUDITO — MODO PERGAMINO' + (group ? ' · ' + group.label.toUpperCase() : '');
+    if (sourceEntries.length === 0) {
+      content.innerHTML = '<div class="empty-state"><div class="empty-icon">&#x1F4DC;</div><p>Las paginas estan en blanco... por ahora.<br>Escribe tu primera entrada y despierta lo que duerme.</p></div>';
+    } else {
+      const sorted = sourceEntries.slice().sort(function(a, b) { return a.id - b.id; });
+      content.innerHTML = sorted.map(function(entry, idx) {
+        const divider = idx < sorted.length - 1 ? '<div class="perg-divider">&#10022; &#10022; &#10022;</div>' : '';
+        return '<div class="perg-entry">' +
+          '<div class="perg-entry-meta">' +
+            '<span class="perg-entry-icon">' + moodIcons[entry.mood] + '</span>' +
+            '<span>' + escapeHtml(entry.date) + '</span>' +
+          '</div>' +
+          '<h3 class="perg-entry-title">' + escapeHtml(entry.title) + '</h3>' +
+          '<div class="perg-entry-body">' + escapeHtml(entry.body) + '</div>' +
+        '</div>' + divider;
+      }).join('');
+    }
+    document.getElementById('pergaminoOverlay').classList.add('active');
+    content.scrollTop = 0;
+  }
+  function closePergamino() {
+    document.getElementById('pergaminoOverlay').classList.remove('active');
+  }
+
   // ===== MEDITACION =====
+  function toggleMeditationCues() {
+    meditationCuesEnabled = !meditationCuesEnabled;
+    document.getElementById('meditationCuesBtn').classList.toggle('selected', meditationCuesEnabled);
+  }
+  // Vibra el dispositivo (si el navegador lo permite) para marcar cada fase
+  // de la respiracion sin necesidad de mirar la pantalla.
+  function vibratePhase(pattern) {
+    if (!meditationCuesEnabled) return;
+    if (navigator.vibrate) {
+      try { navigator.vibrate(pattern); } catch (e) {}
+    }
+  }
+  // Reproduce un tono breve y distintivo por fase, independiente del sonido
+  // ambiental, para poder seguir la meditacion con los ojos cerrados.
+  function playPhaseTone(freq, duration) {
+    if (!meditationCuesEnabled || !audioEnabled) return;
+    try {
+      initAudio();
+      const ctx = audioCtx;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, ctx.currentTime);
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.14, ctx.currentTime + 0.06);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + duration + 0.05);
+    } catch (e) {}
+  }
   function selectMeditationDuration(min) {
     meditationDuration = min;
     meditationTimeLeft = min * 60;
@@ -2840,6 +3037,8 @@
       if (meditationTimeLeft <= 0) {
         stopMeditation();
         document.getElementById('breathInstruction').textContent = 'El trance ha terminado. Abre los ojos... lentamente.';
+        vibratePhase([200, 100, 200, 100, 400]);
+        playPhaseTone(659, 1.4);
         let recovery = 5;
         const moon = getMoonModifier();
         if (moon === 4) recovery = 10;
@@ -2880,6 +3079,8 @@
         circle.classList.add('breathing-in');
         text.textContent = 'INHALA';
         instruction.textContent = 'Llena tus pulmones de oscuridad tranquila...';
+        vibratePhase([120]);
+        playPhaseTone(392, 0.9);
         phase = 1;
         breathInterval = setTimeout(cycle, 4000);
       } else if (phase === 1) {
@@ -2887,6 +3088,8 @@
         circle.classList.add('breath-hold');
         text.textContent = 'SOSTEN';
         instruction.textContent = 'El vacio tambien contiene vida. Quédate ahi...';
+        vibratePhase([60, 80, 60]);
+        playPhaseTone(523, 0.4);
         phase = 2;
         breathInterval = setTimeout(cycle, 4000);
       } else if (phase === 2) {
@@ -2894,6 +3097,8 @@
         circle.classList.add('breathing-out');
         text.textContent = 'EXHALA';
         instruction.textContent = 'Suelta lo que ya no necesitas. Deja que se disipe...';
+        vibratePhase([280]);
+        playPhaseTone(294, 1.1);
         phase = 3;
         breathInterval = setTimeout(cycle, 4000);
       } else {
@@ -2903,6 +3108,8 @@
         const p = meditationPhrases[Math.floor(Math.random() * meditationPhrases.length)];
         instruction.textContent = p;
         phrases.textContent = '"' + p + '"';
+        vibratePhase([40, 60, 40, 60, 40]);
+        playPhaseTone(220, 0.5);
         phase = 0;
         breathInterval = setTimeout(cycle, 4000);
       }
