@@ -1896,7 +1896,28 @@
   if (!todayActivity.exerciseDetails) todayActivity.exerciseDetails = [];
 
   let pacts = JSON.parse(localStorage.getItem('lovecraft_pacts') || '{"lastDate":"","completed":false,"current":null,"history":[]}');
-  let seals = JSON.parse(localStorage.getItem('lovecraft_seals') || '[]');
+  const legacySealIconMap = {
+    '🌙': 'luna', '🌑': 'luna',
+    '🔒': 'candado', '🔐': 'candado',
+    '⚡': 'relampago',
+    '👁️': 'ojo', '👁': 'ojo',
+    '⚖️': 'equilibrio', '⚖': 'equilibrio',
+    '⚔️': 'espadas', '⚔': 'espadas',
+    '📜': 'pergamino',
+    '👻': 'espectro',
+    '⭐': 'estrella', '✨': 'estrella',
+    '🕳️': 'vacio', '🕳': 'vacio', '⚫': 'vacio'
+  };
+  function migrateLegacySeals(list) {
+    return (list || []).map(function(s) {
+      if (!s.id && s.icon && legacySealIconMap[s.icon]) {
+        return { id: legacySealIconMap[s.icon], date: s.date, pact: s.pact };
+      }
+      return s;
+    });
+  }
+  let seals = migrateLegacySeals(JSON.parse(localStorage.getItem('lovecraft_seals') || '[]'));
+  localStorage.setItem('lovecraft_seals', JSON.stringify(seals));
   let levelData = JSON.parse(localStorage.getItem('lovecraft_level') || '{"rituals":0,"title":"El Despierto"}');
   let audioEnabled = false;
   let audioCtx = null;
@@ -3732,6 +3753,7 @@
     renderPact();
     renderSeals();
   }
+  const fallbackSealIcon = sealSvg('<path d="M12 2 14.6 9.1 22 9.6 16.3 14.3 18.2 21.5 12 17.4 5.8 21.5 7.7 14.3 2 9.6 9.4 9.1Z"/>');
   function renderSeals() {
     const grid = document.getElementById('sealsGrid');
     if (seals.length === 0) {
@@ -3740,7 +3762,7 @@
     }
     grid.innerHTML = seals.map(function(s, i) {
       const def = sealDefs.find(function(d) { return d.id === s.id; });
-      const iconHtml = def ? def.icon : (s.icon || '\u2726');
+      const iconHtml = def ? def.icon : fallbackSealIcon;
       const title = def ? def.name : 'Sello Arcano';
       return '<div class="seal-item earned" title="' + title + ' — ' + s.pact + ' — ' + s.date + '" onclick="openSealModal(' + i + ')">' + iconHtml + '</div>';
     }).join('');
@@ -4070,7 +4092,7 @@ function detectPlatform() {
       if (data.sanityHistory) { sanityHistory = data.sanityHistory; localStorage.setItem('lovecraft_sanity_history', JSON.stringify(sanityHistory)); }
       if (data.todayActivity) { todayActivity = data.todayActivity; localStorage.setItem('lovecraft_today_activity', JSON.stringify(todayActivity)); }
       if (data.pacts) { pacts = data.pacts; localStorage.setItem('lovecraft_pacts', JSON.stringify(pacts)); }
-      if (data.seals) { seals = data.seals; localStorage.setItem('lovecraft_seals', JSON.stringify(seals)); }
+      if (data.seals) { seals = migrateLegacySeals(data.seals); localStorage.setItem('lovecraft_seals', JSON.stringify(seals)); }
       if (data.levelData) { levelData = data.levelData; localStorage.setItem('lovecraft_level', JSON.stringify(levelData)); }
       if (data.studyStats) { studyStats = data.studyStats; localStorage.setItem('lovecraft_study_stats', JSON.stringify(studyStats)); }
       if (data.exerciseProgress) { exerciseProgress = data.exerciseProgress; localStorage.setItem('lovecraft_exercise_progress', JSON.stringify(exerciseProgress)); }
