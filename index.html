@@ -3276,6 +3276,8 @@
         todayActivity.exercisesDone = (todayActivity.exercisesDone || 0) + 1;
         todayActivity.exerciseIds = todayActivity.exerciseIds || [];
         todayActivity.exerciseIds.push(activeExercise.id);
+        todayActivity.exerciseDetails = todayActivity.exerciseDetails || [];
+        todayActivity.exerciseDetails.push({ id: activeExercise.id, seconds: getEffectiveDuration(activeExercise), timestamp: new Date().toISOString() });
         localStorage.setItem('lovecraft_today_activity', JSON.stringify(todayActivity));
         didExerciseBeforeStudy = true;
         recordRitual();
@@ -3410,6 +3412,9 @@
     todayActivity.exercisesDone = (todayActivity.exercisesDone || 0) + 1;
     todayActivity.exerciseIds = todayActivity.exerciseIds || [];
     todayActivity.exerciseIds.push(activeExercise.id);
+    todayActivity.exerciseDetails = todayActivity.exerciseDetails || [];
+    const finishedPlan = getIntervalPlan(activeExercise);
+    todayActivity.exerciseDetails.push({ id: activeExercise.id, seconds: finishedPlan.work * finishedPlan.rounds, timestamp: new Date().toISOString() });
     localStorage.setItem('lovecraft_today_activity', JSON.stringify(todayActivity));
     didExerciseBeforeStudy = true;
     recordRitual();
@@ -3455,6 +3460,7 @@
       id: activeExercise.id,
       name: activeExercise.name,
       minutes: minutes,
+      seconds: minutes * 60,
       timestamp: new Date().toISOString()
     });
     localStorage.setItem('lovecraft_today_activity', JSON.stringify(todayActivity));
@@ -3714,10 +3720,21 @@
       checks.push({ label: 'Escritura en Locura', done: done });
     }
     if (reqs.exerciseId) {
-      const ids = todayActivity.exerciseIds || [];
-      const done = ids.includes(reqs.exerciseId);
+      const details = todayActivity.exerciseDetails || [];
+      const matching = details.filter(function(d) { return d.id === reqs.exerciseId; });
+      let done;
+      let label;
+      if (reqs.duration) {
+        const bestSeconds = matching.reduce(function(max, d) { return Math.max(max, d.seconds || 0); }, 0);
+        done = bestSeconds >= reqs.duration;
+        label = 'Postura sostenida: ' + bestSeconds + '/' + reqs.duration + ' seg';
+      } else {
+        const ids = todayActivity.exerciseIds || [];
+        done = ids.includes(reqs.exerciseId);
+        label = 'Ejercicio especifico';
+      }
       if (!done) allDone = false;
-      checks.push({ label: 'Ejercicio especifico', done: done });
+      checks.push({ label: label, done: done });
     }
 
     progressEl.innerHTML = checks.map(function(c) {
