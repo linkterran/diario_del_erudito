@@ -703,6 +703,47 @@
     font-style: italic;
     text-align: center;
   }
+  .ritual-list {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .ritual-btn {
+    padding: 8px 12px;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid #3a2a1a;
+    border-radius: 3px;
+    color: #8a7560;
+    font-family: 'Cinzel', serif;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.3s;
+    letter-spacing: 0.5px;
+  }
+  .ritual-btn:hover { border-color: #5a4a3a; color: #8b7355; }
+  .ritual-btn.selected {
+    border-color: #8b7355;
+    color: #c9b8a0;
+    background: rgba(139,115,85,0.1);
+    box-shadow: 0 0 10px rgba(139,115,85,0.12);
+  }
+  .ritual-info {
+    background: rgba(0,0,0,0.2);
+    border: 1px solid #2a1a0a;
+    border-radius: 3px;
+    padding: 10px 12px;
+    margin-bottom: 16px;
+    font-size: 11px;
+    color: #a8967f;
+    line-height: 1.6;
+  }
+  .ritual-info .ritual-benefits {
+    color: #6a8a8f;
+    margin-top: 4px;
+    font-style: italic;
+  }
   .duration-selector {
     display: flex;
     justify-content: center;
@@ -734,6 +775,67 @@
     color: #8b7355;
     margin: 12px 0;
     letter-spacing: 4px;
+  }
+
+  /* === RUTINAS ENCADENADAS === */
+  .routine-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .routine-card {
+    background: rgba(0,0,0,0.25);
+    border: 1px solid #2a1a0a;
+    border-radius: 4px;
+    padding: 12px 14px;
+  }
+  .routine-name {
+    font-family: 'Cinzel', serif;
+    font-size: 13px;
+    color: #8b7355;
+    margin: 0 0 4px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: space-between;
+  }
+  .routine-desc {
+    font-size: 11px;
+    color: #8a7560;
+    line-height: 1.5;
+    margin: 0 0 4px 0;
+  }
+  .routine-benefits {
+    font-size: 10px;
+    color: #6a8a8f;
+    font-style: italic;
+    margin: 0 0 10px 0;
+  }
+  .routine-progress {
+    background: rgba(139,115,85,0.08);
+    border: 1px solid #5a4a3a;
+    border-radius: 4px;
+    padding: 12px 14px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .routine-progress .rp-title {
+    font-family: 'Cinzel', serif;
+    font-size: 12px;
+    color: #c9b8a0;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+  }
+  .routine-progress .rp-step {
+    font-size: 11px;
+    color: #8a7560;
+    margin-bottom: 10px;
+  }
+  .routine-progress .rp-controls {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
   }
 
   /* === EJERCICIOS === */
@@ -1558,6 +1660,9 @@
       <div class="section-title">Contemplacion del Abismo</div>
       <div class="section-subtitle">"En el silencio profundo, el vacio tambien te observa..."</div>
 
+      <div class="ritual-list" id="ritualList"></div>
+      <div class="ritual-info" id="ritualInfo"></div>
+
       <div class="duration-selector">
         <button class="duration-btn" data-dur="3" onclick="selectMeditationDuration(3)">3 min</button>
         <button class="duration-btn selected" data-dur="5" onclick="selectMeditationDuration(5)">5 min</button>
@@ -1593,6 +1698,11 @@
       <div class="section-title">Forja del Recipiente</div>
       <div class="section-subtitle">"El cuerpo es el templo. El dolor, la oracion. La resistencia, la iluminacion..."</div>
 
+      <div style="font-family:'Cinzel',serif;font-size:12px;color:#8b7355;letter-spacing:1px;margin-bottom:8px;">Rituales Encadenados</div>
+      <div class="routine-list" id="routineList"></div>
+      <div class="routine-progress" id="routineProgress" style="display:none;"></div>
+
+      <div style="font-family:'Cinzel',serif;font-size:12px;color:#8b7355;letter-spacing:1px;margin:20px 0 8px;">Pruebas Individuales</div>
       <div class="exercise-list" id="exerciseList"></div>
 
       <div class="exercise-detail" id="exerciseDetail" style="display:none;">
@@ -2028,6 +2138,60 @@
     "Las estrellas se alinean. No importa si los ojos estan cerrados. Ellas te ven."
   ];
 
+  // Cada ritual define su propio patron de fases (inhala/sostén/exhala/pausa),
+  // con duracion en segundos, instruccion, tono y patron de vibracion por fase.
+  // "hold" controla el estilo visual del circulo: 'in' | 'out' | 'hold'.
+  const meditationRituals = [
+    {
+      id: 'box',
+      name: 'Respiracion Cuadrada',
+      icon: '&#9723;',
+      desc: 'El patron de los vigias del umbral: cuatro fases identicas, como los cuatro muros de una celda que tu mismo abres y cierras a voluntad.',
+      benefits: 'Calma el sistema nervioso, mejora la concentracion y es el punto de entrada mas accesible para quien recien empieza a meditar.',
+      phases: [
+        { name: 'INHALA', dur: 4, hold: 'in', instruction: 'Llena tus pulmones de oscuridad tranquila...', freq: 392, tone: 0.9, vibrate: [120] },
+        { name: 'SOSTEN', dur: 4, hold: 'hold', instruction: 'El vacio tambien contiene vida. Quedate ahi...', freq: 523, tone: 0.4, vibrate: [60, 80, 60] },
+        { name: 'EXHALA', dur: 4, hold: 'out', instruction: 'Suelta lo que ya no necesitas. Deja que se disipe...', freq: 294, tone: 1.1, vibrate: [280] },
+        { name: 'PAUSA', dur: 4, hold: 'hold', usePhrase: true, freq: 220, tone: 0.5, vibrate: [40, 60, 40, 60, 40] }
+      ]
+    },
+    {
+      id: '478',
+      name: 'El Conjuro 4-7-8',
+      icon: '&#127760;',
+      desc: 'Un ritual mas antiguo y exigente. La retencion prolongada obliga a la mente a rendirse antes que el cuerpo.',
+      benefits: 'Disenada para inducir sueno y calma profunda; la retencion larga activa el sistema parasimpatico y ralentiza el ritmo cardiaco.',
+      phases: [
+        { name: 'INHALA', dur: 4, hold: 'in', instruction: 'Inhala por la nariz, contando los latidos del abismo...', freq: 392, tone: 0.9, vibrate: [120] },
+        { name: 'SOSTEN', dur: 7, hold: 'hold', instruction: 'Retén el aire. Siete es el numero que los antiguos temian...', freq: 523, tone: 0.5, vibrate: [60, 80, 60] },
+        { name: 'EXHALA', dur: 8, hold: 'out', instruction: 'Exhala lento por la boca, como si soplaras una vela lejana...', freq: 294, tone: 1.3, vibrate: [280] }
+      ]
+    },
+    {
+      id: 'coherent',
+      name: 'Respiracion Coherente',
+      icon: '&#8734;',
+      desc: 'Sin pausas, sin retencion. Un pulso constante, como la marea que no se detiene ni de dia ni de noche.',
+      benefits: 'Un ritmo constante de unas 5-6 respiraciones por minuto equilibra el sistema nervioso autonomo y mejora la variabilidad cardiaca.',
+      phases: [
+        { name: 'INHALA', dur: 5, hold: 'in', instruction: 'Inhala con calma, sin forzar, como una marea que sube...', freq: 392, tone: 1.0, vibrate: [100] },
+        { name: 'EXHALA', dur: 5, hold: 'out', instruction: 'Exhala con la misma calma, como la marea que baja...', freq: 294, tone: 1.0, vibrate: [100] }
+      ]
+    },
+    {
+      id: 'extended_exhale',
+      name: 'Exhalacion del Abismo',
+      icon: '&#127761;',
+      desc: 'La exhalacion se extiende mucho mas alla de la inhalacion, como si algo tirara del aire hacia la profundidad.',
+      benefits: 'La exhalacion prolongada intensifica la activacion del nervio vago; util en momentos de ansiedad aguda o tension acumulada.',
+      phases: [
+        { name: 'INHALA', dur: 4, hold: 'in', instruction: 'Inhala en cuatro tiempos, breve y contenido...', freq: 392, tone: 0.9, vibrate: [120] },
+        { name: 'EXHALA', dur: 8, hold: 'out', instruction: 'Exhala en ocho tiempos. Deja que el abismo se lo lleve todo...', freq: 261, tone: 1.4, vibrate: [280] }
+      ]
+    }
+  ];
+  let selectedRitual = meditationRituals[0];
+
   // ===== EJERCICIOS =====
   const exercises = [
     {
@@ -2336,6 +2500,47 @@
       ]
     }
   ];
+
+  // ===== RITUALES ENCADENADOS =====
+  // Cada rutina encadena varias pruebas de "exercises" en secuencia. Al terminar
+  // una, la siguiente se carga automaticamente hasta completar el ritual.
+  const routines = [
+    {
+      id: 'forja_basica',
+      name: 'Ritual de la Forja Basica',
+      icon: '&#9874;',
+      desc: 'Tres pruebas fundamentales para el iniciado: piernas, nucleo y empuje. El primer paso en el camino de la disciplina.',
+      benefits: 'Rutina de cuerpo completo en poco tiempo y sin equipo; construye la base de fuerza isometrica sobre la que se levantan las demas pruebas.',
+      exerciseIds: ['horse', 'plank', 'wall_push_low']
+    },
+    {
+      id: 'tendones_antiguos',
+      name: 'Ritual de los Tendones Antiguos',
+      icon: '&#9775;&#65039;',
+      desc: 'Tres posturas del Yi Jin Jing y el vacio del cuerpo hueco. Un ritual de apertura y control.',
+      benefits: 'Mejora la movilidad de columna y hombros y fortalece el nucleo mediante posturas ancestrales de Qigong.',
+      exerciseIds: ['yijin1', 'yijin2', 'hollow']
+    },
+    {
+      id: 'agarre_puerta',
+      name: 'Ritual del Agarre y la Puerta',
+      icon: '&#128272;',
+      desc: 'El puno que se cierra, la puerta que empuja, la puerta que tira. Equilibrio entre fuerza y control.',
+      benefits: 'Equilibra empuje y traccion del tren superior y desarrolla fuerza de agarre funcional, util en la vida diaria.',
+      exerciseIds: ['grip', 'door_push', 'door_pull']
+    },
+    {
+      id: 'completo_erudito',
+      name: 'Ritual Completo del Erudito',
+      icon: '&#128213;',
+      desc: 'Cinco pruebas encadenadas sin descanso entre ellas. Solo para quien ya domina cada prueba por separado.',
+      benefits: 'Rutina larga de acondicionamiento total; construye resistencia muscular y disciplina mental sostenida.',
+      exerciseIds: ['horse', 'plank', 'hollow', 'grip', 'wall']
+    }
+  ];
+  let activeRoutine = null;
+  let routineIndex = 0;
+
   let activeExercise = null;
   let exerciseTimeLeft = 0;
   let exerciseInterval = null;
@@ -2451,6 +2656,8 @@
     renderEntries();
     addWhispers();
     renderExercises();
+    renderRoutines();
+    renderRituals();
     updateStudyStats();
     updateMeditationDisplay();
     updatePomodoroDisplay();
@@ -3023,6 +3230,34 @@
       osc.stop(ctx.currentTime + duration + 0.05);
     } catch (e) {}
   }
+  function renderRituals() {
+    const list = document.getElementById('ritualList');
+    if (!list) return;
+    list.innerHTML = meditationRituals.map(function(r) {
+      const sel = r.id === selectedRitual.id ? ' selected' : '';
+      return '<button class="ritual-btn' + sel + '" data-ritual="' + r.id + '" onclick="selectMeditationRitual(\'' + r.id + '\')">' +
+        r.icon + ' ' + r.name + '</button>';
+    }).join('');
+    renderRitualInfo();
+  }
+  function renderRitualInfo() {
+    const info = document.getElementById('ritualInfo');
+    if (!info) return;
+    info.innerHTML = escapeHtml(selectedRitual.desc) +
+      '<div class="ritual-benefits">Beneficios: ' + escapeHtml(selectedRitual.benefits) + '</div>';
+  }
+  function selectMeditationRitual(id) {
+    if (meditationRunning) return;
+    const ritual = meditationRituals.find(function(r) { return r.id === id; });
+    if (!ritual) return;
+    selectedRitual = ritual;
+    document.querySelectorAll('.ritual-btn').forEach(function(btn) {
+      btn.classList.toggle('selected', btn.dataset.ritual === id);
+    });
+    renderRitualInfo();
+    document.getElementById('breathText').textContent = selectedRitual.phases[0].name;
+    document.getElementById('breathInstruction').textContent = selectedRitual.phases[0].instruction || 'Cierra los ojos. Siente como la oscuridad te envuelve...';
+  }
   function selectMeditationDuration(min) {
     meditationDuration = min;
     meditationTimeLeft = min * 60;
@@ -3048,7 +3283,7 @@
     meditationRunning = true;
     document.getElementById('meditationBtn').textContent = 'Detener Trance';
     document.getElementById('meditationPhrases').style.display = 'block';
-    document.getElementById('breathInstruction').textContent = 'Inhala profundamente por la nariz...';
+    document.getElementById('breathInstruction').textContent = selectedRitual.phases[0].instruction || 'Inhala profundamente por la nariz...';
     startBreathCycle();
     clearInterval(meditationInterval);
     meditationInterval = setInterval(function() {
@@ -3081,13 +3316,16 @@
     if (breathInterval) clearTimeout(breathInterval);
     document.getElementById('meditationBtn').textContent = 'Iniciar Trance';
     document.getElementById('breathCircle').classList.remove('breathing-in', 'breathing-out', 'breath-hold');
-    document.getElementById('breathText').textContent = 'INHALA';
+    document.getElementById('breathCircle').style.animationDuration = '';
+    document.getElementById('breathText').textContent = selectedRitual.phases[0].name;
     meditationTimeLeft = meditationDuration * 60;
     updateMeditationDisplay();
     if (audioEnabled) stopAudio();
   }
+  // Recorre genericamente las fases del ritual seleccionado (selectedRitual.phases),
+  // cada una con su propia duracion, instruccion, tono y patron de vibracion.
   function startBreathCycle() {
-    let phase = 0;
+    let phaseIdx = 0;
     const circle = document.getElementById('breathCircle');
     const text = document.getElementById('breathText');
     const instruction = document.getElementById('breathInstruction');
@@ -3095,47 +3333,131 @@
 
     function cycle() {
       if (!meditationRunning) return;
-      if (phase === 0) {
-        circle.classList.remove('breathing-out', 'breath-hold');
-        circle.classList.add('breathing-in');
-        text.textContent = 'INHALA';
-        instruction.textContent = 'Llena tus pulmones de oscuridad tranquila...';
-        vibratePhase([120]);
-        playPhaseTone(392, 0.9);
-        phase = 1;
-        breathInterval = setTimeout(cycle, 4000);
-      } else if (phase === 1) {
-        circle.classList.remove('breathing-in');
-        circle.classList.add('breath-hold');
-        text.textContent = 'SOSTEN';
-        instruction.textContent = 'El vacio tambien contiene vida. Quédate ahi...';
-        vibratePhase([60, 80, 60]);
-        playPhaseTone(523, 0.4);
-        phase = 2;
-        breathInterval = setTimeout(cycle, 4000);
-      } else if (phase === 2) {
-        circle.classList.remove('breath-hold');
-        circle.classList.add('breathing-out');
-        text.textContent = 'EXHALA';
-        instruction.textContent = 'Suelta lo que ya no necesitas. Deja que se disipe...';
-        vibratePhase([280]);
-        playPhaseTone(294, 1.1);
-        phase = 3;
-        breathInterval = setTimeout(cycle, 4000);
-      } else {
-        circle.classList.remove('breathing-out');
-        circle.classList.add('breath-hold');
-        text.textContent = 'PAUSA';
+      const ritual = selectedRitual;
+      const phase = ritual.phases[phaseIdx];
+
+      circle.classList.remove('breathing-in', 'breathing-out', 'breath-hold');
+      circle.style.animationDuration = phase.dur + 's';
+      if (phase.hold === 'in') circle.classList.add('breathing-in');
+      else if (phase.hold === 'out') circle.classList.add('breathing-out');
+      else circle.classList.add('breath-hold');
+
+      text.textContent = phase.name;
+      if (phase.usePhrase) {
         const p = meditationPhrases[Math.floor(Math.random() * meditationPhrases.length)];
         instruction.textContent = p;
         phrases.textContent = '"' + p + '"';
-        vibratePhase([40, 60, 40, 60, 40]);
-        playPhaseTone(220, 0.5);
-        phase = 0;
-        breathInterval = setTimeout(cycle, 4000);
+      } else {
+        instruction.textContent = phase.instruction || '';
       }
+      vibratePhase(phase.vibrate || []);
+      playPhaseTone(phase.freq, phase.tone);
+
+      phaseIdx = (phaseIdx + 1) % ritual.phases.length;
+      breathInterval = setTimeout(cycle, phase.dur * 1000);
     }
     cycle();
+  }
+
+  // ===== RITUALES ENCADENADOS =====
+  function renderRoutines() {
+    const list = document.getElementById('routineList');
+    if (!list) return;
+    const doneToday = todayActivity.routineIds || [];
+    list.innerHTML = routines.map(function(r) {
+      const isDone = doneToday.includes(r.id);
+      const checkMark = isDone ? '<span style="color:#8b7355;font-size:13px;">&#10003;</span>' : '';
+      const names = r.exerciseIds.map(function(id) {
+        const ex = exercises.find(function(e) { return e.id === id; });
+        return ex ? ex.name : id;
+      }).join(' &rarr; ');
+      return '<div class="routine-card">' +
+        '<div class="routine-name">' + r.icon + ' ' + r.name + checkMark + '</div>' +
+        '<p class="routine-desc">' + r.desc + '</p>' +
+        '<p class="routine-benefits">Beneficios: ' + r.benefits + '</p>' +
+        '<p class="routine-desc" style="margin-bottom:10px;">' + names + '</p>' +
+        '<button class="btn-secondary" style="width:100%;" onclick="startRoutine(\'' + r.id + '\')">&#9889; Iniciar Ritual (' + r.exerciseIds.length + ' pruebas)</button>' +
+      '</div>';
+    }).join('');
+  }
+  function startRoutine(id) {
+    const routine = routines.find(function(r) { return r.id === id; });
+    if (!routine) return;
+    activeRoutine = routine;
+    routineIndex = 0;
+    activeExercise = null;
+    selectExercise(routine.exerciseIds[0]);
+    renderRoutineProgress();
+    document.getElementById('exerciseDetail').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  function renderRoutineProgress() {
+    const box = document.getElementById('routineProgress');
+    if (!box) return;
+    if (!activeRoutine) { box.style.display = 'none'; return; }
+    const total = activeRoutine.exerciseIds.length;
+    const currentEx = exercises.find(function(e) { return e.id === activeRoutine.exerciseIds[routineIndex]; });
+    box.style.display = 'block';
+    box.innerHTML = '<div class="rp-title">' + activeRoutine.icon + ' ' + activeRoutine.name + '</div>' +
+      '<div class="rp-step">Prueba ' + (routineIndex + 1) + ' / ' + total + (currentEx ? ' — ' + currentEx.name : '') + '</div>' +
+      '<div class="rp-controls">' +
+      '<button class="btn-ghost" onclick="skipRoutineExercise()">Saltar prueba</button>' +
+      '<button class="btn-ghost" onclick="cancelRoutine()">Cancelar ritual</button>' +
+      '</div>';
+  }
+  function advanceRoutine() {
+    if (!activeRoutine) return;
+    routineIndex++;
+    if (routineIndex >= activeRoutine.exerciseIds.length) {
+      finishRoutine();
+      return;
+    }
+    const box = document.getElementById('routineProgress');
+    if (box) {
+      box.innerHTML = '<div class="rp-title">' + activeRoutine.icon + ' ' + activeRoutine.name + '</div>' +
+        '<div class="rp-step">Preparando la siguiente prueba...</div>';
+    }
+    setTimeout(function() {
+      if (!activeRoutine) return;
+      activeExercise = null;
+      selectExercise(activeRoutine.exerciseIds[routineIndex]);
+      renderRoutineProgress();
+    }, 1800);
+  }
+  function finishRoutine() {
+    const routine = activeRoutine;
+    const bonus = 4;
+    sanity = Math.min(100, sanity + bonus);
+    localStorage.setItem('lovecraft_sanity', sanity);
+    updateSanity();
+    todayActivity.routineIds = todayActivity.routineIds || [];
+    todayActivity.routineIds.push(routine.id);
+    localStorage.setItem('lovecraft_today_activity', JSON.stringify(todayActivity));
+    activeRoutine = null;
+    routineIndex = 0;
+    const box = document.getElementById('routineProgress');
+    if (box) {
+      box.innerHTML = '<div class="rp-title">&#10024; Ritual Completado &#10024;</div>' +
+        '<div class="rp-step">' + routine.name + ' — Cordura +' + bonus + '</div>';
+      setTimeout(function() { box.style.display = 'none'; }, 3500);
+    }
+    renderRoutines();
+  }
+  function skipRoutineExercise() {
+    clearInterval(exerciseInterval);
+    exerciseRunning = false;
+    advanceRoutine();
+  }
+  function cancelRoutine() {
+    clearInterval(exerciseInterval);
+    exerciseRunning = false;
+    activeRoutine = null;
+    routineIndex = 0;
+    const box = document.getElementById('routineProgress');
+    if (box) box.style.display = 'none';
+    document.getElementById('exerciseDetail').style.display = 'none';
+    activeExercise = null;
+    document.querySelectorAll('.exercise-card').forEach(function(c) { c.classList.remove('active'); });
+    renderRoutines();
   }
 
   // ===== EJERCICIOS =====
@@ -3161,6 +3483,7 @@
     return m + ':' + s;
   }
   function selectExercise(id) {
+    if (activeRoutine && id !== activeRoutine.exerciseIds[routineIndex]) return;
     if (activeExercise && activeExercise.id === id) {
       document.getElementById('exerciseDetail').style.display = 'none';
       document.querySelectorAll('.exercise-card').forEach(function(c) { c.classList.remove('active'); });
@@ -3289,6 +3612,7 @@
         if (levelupEl && levelResult.leveledUp) {
           levelupEl.textContent = '⚡ Ascendiste a Nivel ' + levelResult.level + ' — ' + levelResult.title + '. La proxima prueba sera mas larga.';
         }
+        if (activeRoutine) advanceRoutine();
       }
     }, 1000);
   }
@@ -3438,6 +3762,7 @@
     if (levelupEl && levelResult.leveledUp) {
       levelupEl.textContent = '⚡ Ascendiste a Nivel ' + levelResult.level + ' — ' + levelResult.title + '. La proxima prueba sera mas larga.';
     }
+    if (activeRoutine) advanceRoutine();
   }
 
   function logManualExercise() {
