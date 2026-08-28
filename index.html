@@ -703,7 +703,7 @@
     font-style: italic;
     text-align: center;
   }
-  .ritual-list {
+  .ritual-selector-list {
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
@@ -1038,6 +1038,52 @@
     letter-spacing: 2px;
     margin-top: 4px;
   }
+  .pomodoro-goal-wrap { margin-bottom: 8px; }
+  .pomodoro-goal-input {
+    width: 100%;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid #3a2a1a;
+    border-radius: 3px;
+    padding: 9px 12px;
+    color: #c9b8a0;
+    font-family: 'IM Fell English', serif;
+    font-size: 13px;
+    text-align: center;
+    outline: none;
+    transition: border-color 0.3s;
+  }
+  .pomodoro-goal-input:focus { border-color: #5a4a3a; }
+  .pomodoro-goal-input::placeholder { color: #6b5a46; }
+  .pomodoro-immersive-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: #0a0a0f;
+    z-index: 3000;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .pomodoro-immersive-overlay.active { display: flex; }
+  .pomo-imm-time {
+    font-family: 'Cinzel', serif;
+    font-size: clamp(64px, 20vw, 160px);
+    color: #8b7355;
+    letter-spacing: 6px;
+    text-shadow: 0 0 30px rgba(139,115,85,0.25);
+    cursor: pointer;
+    user-select: none;
+  }
+  .pomo-imm-goal {
+    font-family: 'IM Fell English', serif;
+    font-style: italic;
+    font-size: clamp(13px, 2.5vw, 18px);
+    color: #6a5a45;
+    letter-spacing: 1px;
+    text-align: center;
+    max-width: 80vw;
+    margin-bottom: 12px;
+  }
   .pomodoro-progress {
     width: 100%;
     height: 6px;
@@ -1357,7 +1403,8 @@
     line-height: 1.6;
     pointer-events: none;
   }
-  .immersive-overlay .imm-close {
+  .immersive-overlay .imm-close,
+  .pomodoro-immersive-overlay .imm-close {
     position: absolute;
     top: 12px;
     right: 12px;
@@ -1375,7 +1422,10 @@
     cursor: pointer;
     font-family: 'Cinzel', serif;
   }
-  .immersive-overlay .imm-close:hover { color: #c9b8a0; }
+  .immersive-overlay .imm-close:hover,
+  .pomodoro-immersive-overlay .imm-close:hover { color: #c9b8a0; }
+  .pomodoro-immersive-overlay .imm-close { color: #a0522d; }
+  .pomodoro-immersive-overlay .imm-close:hover { color: #cd853f; }
 
   @media (max-width: 480px) {
     .immersive-overlay .imm-header {
@@ -1383,7 +1433,8 @@
       letter-spacing: 1.5px;
       padding: 14px 46px 0;
     }
-    .immersive-overlay .imm-close {
+    .immersive-overlay .imm-close,
+    .pomodoro-immersive-overlay .imm-close {
       top: 8px;
       right: 8px;
     }
@@ -1741,7 +1792,7 @@
       <div class="section-title">Contemplacion del Abismo</div>
       <div class="section-subtitle">"En el silencio profundo, el vacio tambien te observa..."</div>
 
-      <div class="ritual-list" id="ritualList"></div>
+      <div class="ritual-selector-list" id="ritualList"></div>
       <div class="ritual-info" id="ritualInfo"></div>
 
       <div class="duration-selector">
@@ -1826,6 +1877,9 @@
         </div>
       </div>
 
+      <div class="pomodoro-goal-wrap">
+        <input type="text" class="pomodoro-goal-input" id="pomodoroGoalInput" placeholder="Declara tu invocación para este ritual..." maxlength="80" oninput="setPomodoroGoal(this.value)">
+      </div>
       <div class="pomodoro-display">
         <div class="pomodoro-time" id="pomodoroTime">25:00</div>
         <div class="pomodoro-label" id="pomodoroLabel">Preparando el ritual...</div>
@@ -1836,6 +1890,9 @@
       <div class="pomodoro-controls">
         <button class="btn-primary" id="pomodoroToggle" onclick="togglePomodoro()">Comenzar Ritual</button>
         <button class="btn-secondary" onclick="resetPomodoro()">Reiniciar</button>
+      </div>
+      <div style="text-align:center;margin-top:8px;">
+        <button class="btn-ghost" onclick="openPomodoroImmersive()">&#9670; Modo Inmersivo</button>
       </div>
 
       <div id="synergyMsg" style="text-align:center;font-size:11px;color:#5a4a3a;font-style:italic;margin:8px 0;min-height:16px;"></div>
@@ -2047,6 +2104,13 @@
   <div class="perg-header" id="pergaminoHeader">EL DIARIO DEL ERUDITO — MODO PERGAMINO</div>
   <button class="perg-close" onclick="closePergamino()">&times;</button>
   <div class="perg-content" id="pergaminoContent"></div>
+</div>
+
+<!-- MODO INMERSIVO POMODORO -->
+<div class="pomodoro-immersive-overlay" id="pomodoroImmersiveOverlay">
+  <button class="imm-close" onclick="closePomodoroImmersive()">&times;</button>
+  <div class="pomo-imm-goal" id="pomoImmGoal"></div>
+  <div class="pomo-imm-time" id="pomoImmTime" onclick="togglePomodoro()">25:00</div>
 </div>
 
 <div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
@@ -2813,6 +2877,7 @@
 
   // ===== ESTUDIO / POMODORO =====
   let pomodoroTime = 25 * 60;
+  let pomodoroGoal = localStorage.getItem('lovecraft_pomodoro_goal') || '';
   let pomodoroInterval = null;
   let pomodoroRunning = false;
   let pomodoroPhase = 'work';
@@ -2856,6 +2921,7 @@
     updateStudyStats();
     updateMeditationDisplay();
     updatePomodoroDisplay();
+    document.getElementById('pomodoroGoalInput').value = pomodoroGoal;
     generateDailyPact();
     renderPact();
     renderSeals();
@@ -4169,6 +4235,8 @@
     pomodoroTime = 25 * 60;
     pomodoroCycle = 0;
     didExerciseBeforeStudy = false;
+    setPomodoroGoal('');
+    document.getElementById('pomodoroGoalInput').value = '';
     updatePomodoroDisplay();
     document.getElementById('pomodoroToggle').textContent = 'Comenzar Ritual';
     document.getElementById('pomodoroLabel').textContent = 'Preparando el ritual...';
@@ -4238,11 +4306,28 @@
   function updatePomodoroDisplay() {
     const m = Math.floor(pomodoroTime / 60).toString().padStart(2, '0');
     const s = (pomodoroTime % 60).toString().padStart(2, '0');
-    document.getElementById('pomodoroTime').textContent = m + ':' + s;
+    const timeStr = m + ':' + s;
+    document.getElementById('pomodoroTime').textContent = timeStr;
     let workTime = didExerciseBeforeStudy ? 30 * 60 : 25 * 60;
     const totalTime = pomodoroPhase === 'work' ? workTime : (pomodoroPhase === 'shortBreak' ? 5 * 60 : 15 * 60);
     const pct = (pomodoroTime / totalTime) * 100;
     document.getElementById('pomodoroFill').style.width = pct + '%';
+    const immTime = document.getElementById('pomoImmTime');
+    if (immTime) immTime.textContent = timeStr;
+  }
+  function setPomodoroGoal(value) {
+    pomodoroGoal = value;
+    localStorage.setItem('lovecraft_pomodoro_goal', pomodoroGoal);
+    const immGoal = document.getElementById('pomoImmGoal');
+    if (immGoal) immGoal.textContent = pomodoroGoal;
+  }
+  function openPomodoroImmersive() {
+    document.getElementById('pomodoroImmersiveOverlay').classList.add('active');
+    document.getElementById('pomoImmGoal').textContent = pomodoroGoal;
+    updatePomodoroDisplay();
+  }
+  function closePomodoroImmersive() {
+    document.getElementById('pomodoroImmersiveOverlay').classList.remove('active');
   }
   function recordStudySession(minutes) {
     const today = new Date().toLocaleDateString('es-ES');
